@@ -2,6 +2,17 @@ fn get_fuel(mass: f64) -> f64 {
     (mass / 3.0).floor() - 2.0
 }
 
+fn get_total_fuel(module_mass: f64) -> f64 {
+    let mut total: f64 = 0.0;
+    let mut mass: f64 = get_fuel(module_mass);
+    while mass > 0.0 {
+        total = total + mass;
+        mass = get_fuel(mass);
+    }
+
+    total
+}
+
 const MY_INPUTS: [i64; 100] = [
     137139, 104321, 137149, 82531, 97698, 56831, 115133, 64329, 111730, 145953, 73388, 57230,
     61935, 58542, 147631, 79366, 115484, 86997, 80362, 129109, 58568, 121969, 63696, 68116, 86668,
@@ -15,26 +26,44 @@ const MY_INPUTS: [i64; 100] = [
 ];
 
 pub fn run_day_one() {
-    let result: f64 = MY_INPUTS.iter().map(|i| get_fuel(*i as f64)).sum();
-    println!("The result is: {}", result);
+    let part_one: f64 = MY_INPUTS.iter().map(|i| get_fuel(*i as f64)).sum();
+    println!("Day One. The part one result is: {}", part_one);
+
+    let part_two: f64 = MY_INPUTS.iter().map(|i| get_total_fuel(*i as f64)).sum();
+    println!("Day One. The part two result is: {}", part_two);
 }
 
 #[test]
-fn example1() {
+fn example_1() {
     assert_eq!(2.0, get_fuel(12.0));
 }
 
 #[test]
-fn example2() {
+fn example_2() {
     assert_eq!(2.0, get_fuel(14.0));
 }
 
 #[test]
-fn example3() {
+fn example_3() {
     assert_eq!(654.0, get_fuel(1969.0));
 }
 
 #[test]
-fn example4() {
+fn example_4() {
     assert_eq!(33583.0, get_fuel(100756.0));
+}
+
+#[test]
+fn example_5() {
+    assert_eq!(2.0, get_total_fuel(14.0));
+}
+
+#[test]
+fn example_6() {
+    assert_eq!(966.0, get_total_fuel(1969.0));
+}
+
+#[test]
+fn example_7() {
+    assert_eq!(50346.0, get_total_fuel(100756.0));
 }
