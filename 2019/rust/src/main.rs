@@ -1,8 +1,10 @@
+mod intcode;
+
 mod day1;
 mod day2;
 mod day3;
 mod day4;
-mod intcode;
+mod day5;
 
 #[macro_use]
 extern crate lazy_static;
@@ -12,4 +14,5 @@ fn main() {
     day2::run_day_two();
     day3::run_day_three();
     day4::run_day_four();
+    day5::run_day_five();
 }

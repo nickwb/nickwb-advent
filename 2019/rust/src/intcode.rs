@@ -44,17 +44,23 @@ enum Parameter {
 }
 
 #[derive(Debug)]
-struct ParameterCounts {
-    inputs: usize,
-    has_output: bool,
+enum OutputType {
+    None,
+    Address,
+    External,
 }
 
-impl ParameterCounts {
+#[derive(Debug)]
+struct ParameterTypes {
+    inputs: usize,
+    output: OutputType,
+}
+
+impl ParameterTypes {
     fn total_cells(&self) -> MemoryPointer {
-        if self.has_output {
-            self.inputs + 1
-        } else {
-            self.inputs
+        match self.output {
+            OutputType::Address => self.inputs + 1,
+            _ => self.inputs,
         }
     }
 }
@@ -63,6 +69,8 @@ impl ParameterCounts {
 enum OpCode {
     Add,
     Multiply,
+    Input,
+    Output,
     Halt,
 }
 
@@ -71,6 +79,8 @@ impl OpCode {
         Ok(match digits {
             "01" => OpCode::Add,
             "02" => OpCode::Multiply,
+            "03" => OpCode::Input,
+            "04" => OpCode::Output,
             "99" => OpCode::Halt,
             _ => {
                 return Err(IntCodeError::UnknownOpCode);
@@ -78,19 +88,27 @@ impl OpCode {
         })
     }
 
-    fn parameter_count(&self) -> ParameterCounts {
+    fn parameter_types(&self) -> ParameterTypes {
         match self {
-            OpCode::Add => ParameterCounts {
+            OpCode::Add => ParameterTypes {
                 inputs: 2,
-                has_output: true,
+                output: OutputType::Address,
             },
-            OpCode::Multiply => ParameterCounts {
+            OpCode::Multiply => ParameterTypes {
                 inputs: 2,
-                has_output: true,
+                output: OutputType::Address,
             },
-            OpCode::Halt => ParameterCounts {
+            OpCode::Input => ParameterTypes {
                 inputs: 0,
-                has_output: false,
+                output: OutputType::Address,
+            },
+            OpCode::Output => ParameterTypes {
+                inputs: 1,
+                output: OutputType::External,
+            },
+            OpCode::Halt => ParameterTypes {
+                inputs: 0,
+                output: OutputType::None,
             },
         }
     }
@@ -99,9 +117,9 @@ impl OpCode {
 #[derive(Debug)]
 struct Operation {
     op_code: OpCode,
-    parameter_count: ParameterCounts,
+    parameter_types: ParameterTypes,
     parameters: Vec<Parameter>,
-    output: Option<MemoryPointer>,
+    output_address: Option<MemoryPointer>,
 }
 
 impl Computer<'_> {
@@ -131,22 +149,30 @@ impl Computer<'_> {
         let result = match operation.op_code {
             OpCode::Add => Some(get(0)? + get(1)?),
             OpCode::Multiply => Some(get(0)? * get(1)?),
+            OpCode::Input => Some(1), // TODO
+            OpCode::Output => Some(get(0)?),
             _ => None,
         };
 
-        match (
+        let output_states = (
             result,
-            operation.output,
-            operation.parameter_count.has_output,
-        ) {
-            (None, None, false) => Ok(()),
-            (Some(value), Some(addr), true) => self.set_memory_at(addr, value),
+            operation.output_address,
+            &operation.parameter_types.output,
+        );
+
+        match output_states {
+            (None, None, OutputType::None) => Ok(()),
+            (Some(value), Some(addr), OutputType::Address) => self.set_memory_at(addr, value),
+            (Some(value), None, OutputType::External) => {
+                println!("Output: {}", value); // TODO
+                Ok(())
+            }
             _ => Err(IntCodeError::ParameterOutputMismatch),
         }?;
 
         Ok(StepResult::IncrementProgramCounter(
             // One extra for the op_code cell
-            operation.parameter_count.total_cells() + 1,
+            operation.parameter_types.total_cells() + 1,
         ))
     }
 
@@ -156,12 +182,7 @@ impl Computer<'_> {
         assert_eq!(5, digits.len());
 
         let op_code = OpCode::from_digits(&digits[3..5])?;
-        let parameter_counts = op_code.parameter_count();
-
-        // println!(
-        //     "Op: {:?}, inputs: {}, has_output: {}",
-        //     op_code, parameter_counts.inputs, parameter_counts.has_output
-        // );
+        let parameter_types = op_code.parameter_types();
 
         // Make a positional parameter by reading a memory location from the given index
         let make_positional = |idx: usize| {
@@ -180,12 +201,12 @@ impl Computer<'_> {
 
         // Build a parameter by determining its type and reading its location/value
         let build_parameter = |idx: usize| {
-            if idx + 1 > parameter_counts.inputs {
+            if idx + 1 > parameter_types.inputs {
                 return Err(IntCodeError::InvalidParameterIndex);
             }
 
-            let mode_digit = 3 - idx;
-            let mode = &digits[mode_digit..mode_digit + 1];
+            let mode_digit = 2 - idx;
+            let mode = &digits[mode_digit..=mode_digit];
             match mode {
                 "0" => make_positional(idx),
                 "1" => make_immediate(idx),
@@ -195,13 +216,13 @@ impl Computer<'_> {
             }
         };
 
-        let parameters = (0..parameter_counts.inputs)
+        let parameters = (0..parameter_types.inputs)
             .map(build_parameter)
             .collect::<IntCodeResult<Vec<_>>>()?;
 
-        let output = if parameter_counts.has_output {
-            // If we have an output address, find it after the input parameters
-            match make_positional(parameter_counts.inputs) {
+        let output = if let OutputType::Address = parameter_types.output {
+            // If we have an output address, find it immediately after the input parameters
+            match make_positional(parameter_types.inputs) {
                 Ok(Parameter::Position(p)) => Some(p),
                 Ok(Parameter::Immediate(_)) => {
                     return Err(IntCodeError::OutputParameterInImmediateMode)
@@ -214,9 +235,9 @@ impl Computer<'_> {
 
         let operation = Operation {
             op_code: op_code,
-            parameter_count: parameter_counts,
+            parameter_types: parameter_types,
             parameters: parameters,
-            output: output,
+            output_address: output,
         };
 
         Ok(operation)
@@ -255,14 +276,26 @@ impl Computer<'_> {
 
 #[test]
 fn parse_operation() {
-    let state: ComputerState = &mut [1, 2, 3, 4];
-    let computer = Computer::from_state(state);
-    let operation = computer.read_op(0).unwrap();
+    {
+        let state: ComputerState = &mut [1, 2, 3, 4];
+        let computer = Computer::from_state(state);
+        let operation = computer.read_op(0).unwrap();
 
-    assert_eq!(OpCode::Add, operation.op_code);
-    assert_eq!(Parameter::Position(2), operation.parameters[0]);
-    assert_eq!(Parameter::Position(3), operation.parameters[1]);
-    assert_eq!(4, operation.output.unwrap());
+        assert_eq!(OpCode::Add, operation.op_code);
+        assert_eq!(Parameter::Position(2), operation.parameters[0]);
+        assert_eq!(Parameter::Position(3), operation.parameters[1]);
+        assert_eq!(4, operation.output_address.unwrap());
+    }
+    {
+        let state: ComputerState = &mut [1002, 4, 3, 4, 33];
+        let computer = Computer::from_state(state);
+        let operation = computer.read_op(0).unwrap();
+
+        assert_eq!(OpCode::Multiply, operation.op_code);
+        assert_eq!(Parameter::Position(4), operation.parameters[0]);
+        assert_eq!(Parameter::Immediate(3), operation.parameters[1]);
+        assert_eq!(4, operation.output_address.unwrap());
+    }
 }
 
 #[test]
