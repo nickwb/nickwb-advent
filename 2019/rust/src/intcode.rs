@@ -1,12 +1,11 @@
 use std::convert::TryInto;
 
-type MemoryCell = isize;
-type MemoryPointer = usize;
-
-type ComputerState<'a> = &'a mut [MemoryCell];
+pub type MemoryCell = isize;
+pub type MemoryPointer = usize;
+pub type ComputerState<'a> = &'a mut [MemoryCell];
 
 #[derive(Debug)]
-enum IntCodeError {
+pub enum IntCodeError {
     UnknownOpCode,
     ReadMemoryOutOfBounds,
     WriteMemoryOutOfBounds,
@@ -17,7 +16,16 @@ enum IntCodeError {
     ParameterOutputMismatch,
 }
 
-type IntCodeResult<T> = Result<T, IntCodeError>;
+pub type IntCodeResult<T> = Result<T, IntCodeError>;
+
+pub fn run_intcode_program(
+    state: ComputerState,
+    final_addr: MemoryPointer,
+) -> IntCodeResult<MemoryCell> {
+    let mut computer = Computer::from_state(state);
+    computer.run_until_halt()?;
+    Ok(computer.get_memory_at(final_addr)?)
+}
 
 struct Computer<'a> {
     state: ComputerState<'a>,
@@ -260,7 +268,5 @@ fn parse_operation() {
 #[test]
 fn simple_program() {
     let state: ComputerState = &mut [1, 0, 0, 0, 99];
-    let mut computer = Computer::from_state(state);
-    computer.run_until_halt().unwrap();
-    assert_eq!(2, state[0]);
+    assert_eq!(2, run_intcode_program(state, 0).unwrap());
 }
