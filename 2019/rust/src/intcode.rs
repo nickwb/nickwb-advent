@@ -13,7 +13,7 @@ pub enum IntCodeError {
     UnknownParameterType,
     OutputParameterInImmediateMode,
     MemoryCellIsInvalidPointer,
-    ParameterOutputMismatch,
+    EffectMismatch,
 }
 
 pub type IntCodeResult<T> = Result<T, IntCodeError>;
@@ -34,7 +34,14 @@ struct Computer<'a> {
 
 enum StepResult {
     Halt,
-    IncrementProgramCounter(MemoryPointer),
+    Continue,
+}
+
+enum Effect {
+    NoOp,
+    StoreValue(MemoryCell),
+    OutputValue(MemoryCell),
+    Jump(MemoryPointer),
 }
 
 #[derive(Debug, PartialEq)]
@@ -44,23 +51,16 @@ enum Parameter {
 }
 
 #[derive(Debug)]
-enum OutputType {
-    None,
-    Address,
-    External,
-}
-
-#[derive(Debug)]
 struct ParameterTypes {
     inputs: usize,
-    output: OutputType,
+    has_output_parameter: bool,
 }
 
 impl ParameterTypes {
     fn total_cells(&self) -> MemoryPointer {
-        match self.output {
-            OutputType::Address => self.inputs + 1,
-            _ => self.inputs,
+        match self.has_output_parameter {
+            true => self.inputs + 1,
+            false => self.inputs,
         }
     }
 }
@@ -71,6 +71,10 @@ enum OpCode {
     Multiply,
     Input,
     Output,
+    JumpIfTrue,
+    JumpIfFalse,
+    LessThan,
+    Equals,
     Halt,
 }
 
@@ -81,6 +85,10 @@ impl OpCode {
             "02" => OpCode::Multiply,
             "03" => OpCode::Input,
             "04" => OpCode::Output,
+            "05" => OpCode::JumpIfTrue,
+            "06" => OpCode::JumpIfFalse,
+            "07" => OpCode::LessThan,
+            "08" => OpCode::Equals,
             "99" => OpCode::Halt,
             _ => {
                 return Err(IntCodeError::UnknownOpCode);
@@ -92,23 +100,39 @@ impl OpCode {
         match self {
             OpCode::Add => ParameterTypes {
                 inputs: 2,
-                output: OutputType::Address,
+                has_output_parameter: true,
             },
             OpCode::Multiply => ParameterTypes {
                 inputs: 2,
-                output: OutputType::Address,
+                has_output_parameter: true,
             },
             OpCode::Input => ParameterTypes {
                 inputs: 0,
-                output: OutputType::Address,
+                has_output_parameter: true,
             },
             OpCode::Output => ParameterTypes {
                 inputs: 1,
-                output: OutputType::External,
+                has_output_parameter: false,
+            },
+            OpCode::JumpIfTrue => ParameterTypes {
+                inputs: 2,
+                has_output_parameter: false,
+            },
+            OpCode::JumpIfFalse => ParameterTypes {
+                inputs: 2,
+                has_output_parameter: false,
+            },
+            OpCode::LessThan => ParameterTypes {
+                inputs: 2,
+                has_output_parameter: true,
+            },
+            OpCode::Equals => ParameterTypes {
+                inputs: 2,
+                has_output_parameter: true,
             },
             OpCode::Halt => ParameterTypes {
                 inputs: 0,
-                output: OutputType::None,
+                has_output_parameter: false,
             },
         }
     }
@@ -122,12 +146,28 @@ struct Operation {
     output_address: Option<MemoryPointer>,
 }
 
+fn cast_cell_to_pointer(value: MemoryCell) -> IntCodeResult<MemoryPointer> {
+    Ok(value
+        .try_into()
+        .map_err(|_| IntCodeError::MemoryCellIsInvalidPointer)?)
+}
+
+impl Operation {
+    fn get_program_counter_increment(&self) -> MemoryPointer {
+        1 + self.parameter_types.total_cells()
+    }
+}
+
 impl Computer<'_> {
     fn from_state<'a>(state: ComputerState<'a>) -> Computer<'a> {
         Computer {
             state: state,
             program_counter: 0,
         }
+    }
+
+    fn increment_for_operation(&mut self, operation: &Operation) {
+        self.program_counter += operation.get_program_counter_increment();
     }
 
     fn single_step(&mut self, operation: &Operation) -> IntCodeResult<StepResult> {
@@ -147,33 +187,63 @@ impl Computer<'_> {
         };
 
         let result = match operation.op_code {
-            OpCode::Add => Some(get(0)? + get(1)?),
-            OpCode::Multiply => Some(get(0)? * get(1)?),
-            OpCode::Input => Some(1), // TODO
-            OpCode::Output => Some(get(0)?),
-            _ => None,
+            OpCode::Add => Effect::StoreValue(get(0)? + get(1)?),
+            OpCode::Multiply => Effect::StoreValue(get(0)? * get(1)?),
+            OpCode::Input => Effect::StoreValue(5), // TODO
+            OpCode::Output => Effect::OutputValue(get(0)?),
+            OpCode::JumpIfTrue => {
+                if get(0)? == 0 {
+                    Effect::NoOp
+                } else {
+                    Effect::Jump(cast_cell_to_pointer(get(1)?)?)
+                }
+            }
+            OpCode::JumpIfFalse => {
+                if get(0)? == 0 {
+                    Effect::Jump(cast_cell_to_pointer(get(1)?)?)
+                } else {
+                    Effect::NoOp
+                }
+            }
+            OpCode::LessThan => {
+                if get(0)? < get(1)? {
+                    Effect::StoreValue(1)
+                } else {
+                    Effect::StoreValue(0)
+                }
+            }
+            OpCode::Equals => {
+                if get(0)? == get(1)? {
+                    Effect::StoreValue(1)
+                } else {
+                    Effect::StoreValue(0)
+                }
+            }
+            _ => Effect::NoOp,
         };
 
-        let output_states = (
-            result,
-            operation.output_address,
-            &operation.parameter_types.output,
-        );
-
-        match output_states {
-            (None, None, OutputType::None) => Ok(()),
-            (Some(value), Some(addr), OutputType::Address) => self.set_memory_at(addr, value),
-            (Some(value), None, OutputType::External) => {
-                println!("Output: {}", value); // TODO
-                Ok(())
+        let effect_states = (result, operation.output_address);
+        match effect_states {
+            (Effect::NoOp, None) => {
+                self.increment_for_operation(operation);
+                Ok(StepResult::Continue)
             }
-            _ => Err(IntCodeError::ParameterOutputMismatch),
-        }?;
-
-        Ok(StepResult::IncrementProgramCounter(
-            // One extra for the op_code cell
-            operation.parameter_types.total_cells() + 1,
-        ))
+            (Effect::StoreValue(value), Some(addr)) => {
+                self.set_memory_at(addr, value)?;
+                self.increment_for_operation(operation);
+                Ok(StepResult::Continue)
+            }
+            (Effect::OutputValue(value), None) => {
+                println!("Output: {}", value); // TODO
+                self.increment_for_operation(operation);
+                Ok(StepResult::Continue)
+            }
+            (Effect::Jump(addr), None) => {
+                self.program_counter = addr;
+                Ok(StepResult::Continue)
+            }
+            _ => Err(IntCodeError::EffectMismatch),
+        }
     }
 
     fn read_op(&self, from: MemoryPointer) -> IntCodeResult<Operation> {
@@ -186,10 +256,8 @@ impl Computer<'_> {
 
         // Make a positional parameter by reading a memory location from the given index
         let make_positional = |idx: usize| {
-            let location: MemoryPointer = self
-                .get_memory_at(from + 1 + idx)?
-                .try_into()
-                .map_err(|_| IntCodeError::MemoryCellIsInvalidPointer)?;
+            let location: MemoryPointer =
+                cast_cell_to_pointer(self.get_memory_at(from + 1 + idx)?)?;
             Ok(Parameter::Position(location))
         };
 
@@ -220,7 +288,7 @@ impl Computer<'_> {
             .map(build_parameter)
             .collect::<IntCodeResult<Vec<_>>>()?;
 
-        let output = if let OutputType::Address = parameter_types.output {
+        let output = if parameter_types.has_output_parameter {
             // If we have an output address, find it immediately after the input parameters
             match make_positional(parameter_types.inputs) {
                 Ok(Parameter::Position(p)) => Some(p),
@@ -251,7 +319,7 @@ impl Computer<'_> {
                 StepResult::Halt => {
                     return Ok(());
                 }
-                StepResult::IncrementProgramCounter(inc) => self.program_counter += inc,
+                StepResult::Continue => (),
             }
         }
     }
