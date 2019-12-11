@@ -18,18 +18,38 @@ pub enum IntCodeError {
 
 pub type IntCodeResult<T> = Result<T, IntCodeError>;
 
-pub fn run_intcode_program(
+pub fn run_basic_intcode_program(
     state: ComputerState,
     final_addr: MemoryPointer,
 ) -> IntCodeResult<MemoryCell> {
-    let mut computer = Computer::from_state(state);
+    let mut computer = Computer {
+        state,
+        program_counter: 0,
+        input: &NoInput,
+        output: &mut ConsoleOutput,
+    };
     computer.run_until_halt()?;
     Ok(computer.get_memory_at(final_addr)?)
 }
 
-struct Computer<'a> {
+pub fn run_single_input_intcode_program(
+    state: ComputerState,
+    input: MemoryCell,
+) -> IntCodeResult<()> {
+    let mut computer = Computer {
+        state,
+        program_counter: 0,
+        input: &SingleInput { value: input },
+        output: &mut ConsoleOutput,
+    };
+    computer.run_until_halt()
+}
+
+struct Computer<'a, I: InputSource, O: OutputSink> {
     state: ComputerState<'a>,
     program_counter: MemoryPointer,
+    input: &'a I,
+    output: &'a mut O,
 }
 
 enum StepResult {
@@ -158,14 +178,7 @@ impl Operation {
     }
 }
 
-impl Computer<'_> {
-    fn from_state<'a>(state: ComputerState<'a>) -> Computer<'a> {
-        Computer {
-            state: state,
-            program_counter: 0,
-        }
-    }
-
+impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
     fn increment_for_operation(&mut self, operation: &Operation) {
         self.program_counter += operation.get_program_counter_increment();
     }
@@ -189,7 +202,7 @@ impl Computer<'_> {
         let result = match operation.op_code {
             OpCode::Add => Effect::StoreValue(get(0)? + get(1)?),
             OpCode::Multiply => Effect::StoreValue(get(0)? * get(1)?),
-            OpCode::Input => Effect::StoreValue(5), // TODO
+            OpCode::Input => Effect::StoreValue(self.input.next()),
             OpCode::Output => Effect::OutputValue(get(0)?),
             OpCode::JumpIfTrue => {
                 if get(0)? == 0 {
@@ -234,7 +247,7 @@ impl Computer<'_> {
                 Ok(StepResult::Continue)
             }
             (Effect::OutputValue(value), None) => {
-                println!("Output: {}", value); // TODO
+                self.output.write(value);
                 self.increment_for_operation(operation);
                 Ok(StepResult::Continue)
             }
@@ -342,11 +355,48 @@ impl Computer<'_> {
     }
 }
 
+trait InputSource {
+    fn next(&self) -> MemoryCell;
+}
+
+trait OutputSink {
+    fn write(&mut self, value: MemoryCell);
+}
+
+struct SingleInput {
+    value: MemoryCell,
+}
+
+impl InputSource for SingleInput {
+    fn next(&self) -> MemoryCell {
+        self.value
+    }
+}
+
+struct NoInput;
+impl InputSource for NoInput {
+    fn next(&self) -> MemoryCell {
+        panic!("There is no input")
+    }
+}
+
+struct ConsoleOutput;
+impl OutputSink for ConsoleOutput {
+    fn write(&mut self, value: MemoryCell) {
+        println!("Output: {}", value);
+    }
+}
+
 #[test]
 fn parse_operation() {
     {
         let state: ComputerState = &mut [1, 2, 3, 4];
-        let computer = Computer::from_state(state);
+        let computer = Computer {
+            state,
+            program_counter: 0,
+            input: &NoInput,
+            output: &mut ConsoleOutput,
+        };
         let operation = computer.read_op(0).unwrap();
 
         assert_eq!(OpCode::Add, operation.op_code);
@@ -356,7 +406,12 @@ fn parse_operation() {
     }
     {
         let state: ComputerState = &mut [1002, 4, 3, 4, 33];
-        let computer = Computer::from_state(state);
+        let computer = Computer {
+            state,
+            program_counter: 0,
+            input: &NoInput,
+            output: &mut ConsoleOutput,
+        };
         let operation = computer.read_op(0).unwrap();
 
         assert_eq!(OpCode::Multiply, operation.op_code);
@@ -369,5 +424,5 @@ fn parse_operation() {
 #[test]
 fn simple_program() {
     let state: ComputerState = &mut [1, 0, 0, 0, 99];
-    assert_eq!(2, run_intcode_program(state, 0).unwrap());
+    assert_eq!(2, run_basic_intcode_program(state, 0).unwrap());
 }

@@ -11,7 +11,7 @@ const MY_INPUTS: [intcode::MemoryCell; 129] = [
 const TARGET_RESULT: intcode::MemoryCell = 19690720;
 
 pub fn run_day_two() {
-    let part_one = intcode::run_intcode_program(&mut MY_INPUTS.clone(), 0).unwrap();
+    let part_one = intcode::run_basic_intcode_program(&mut MY_INPUTS.clone(), 0).unwrap();
     println!("Day Two. The part one result is: {}", part_one);
 
     let mut i = 0;
@@ -21,7 +21,7 @@ pub fn run_day_two() {
         let state: intcode::ComputerState = &mut MY_INPUTS.clone();
         state[1] = i;
         state[2] = j;
-        let result = intcode::run_intcode_program(state, 0).unwrap();
+        let result = intcode::run_basic_intcode_program(state, 0).unwrap();
 
         if result == TARGET_RESULT {
             let part_two = (100 * i) + j;
@@ -45,7 +45,7 @@ pub fn run_day_two() {
 fn example_1() {
     assert_eq!(
         2,
-        intcode::run_intcode_program(&mut [1, 0, 0, 0, 99], 0).unwrap()
+        intcode::run_basic_intcode_program(&mut [1, 0, 0, 0, 99], 0).unwrap()
     );
 }
 
@@ -53,7 +53,7 @@ fn example_1() {
 fn example_2() {
     assert_eq!(
         6,
-        intcode::run_intcode_program(&mut [2, 3, 0, 3, 99], 3).unwrap()
+        intcode::run_basic_intcode_program(&mut [2, 3, 0, 3, 99], 3).unwrap()
     );
 }
 
@@ -61,7 +61,7 @@ fn example_2() {
 fn example_3() {
     assert_eq!(
         9801,
-        intcode::run_intcode_program(&mut [2, 4, 4, 5, 99, 0], 5).unwrap()
+        intcode::run_basic_intcode_program(&mut [2, 4, 4, 5, 99, 0], 5).unwrap()
     );
 }
 
@@ -69,6 +69,14 @@ fn example_3() {
 fn example_4() {
     assert_eq!(
         30,
-        intcode::run_intcode_program(&mut [1, 1, 1, 4, 99, 5, 6, 0, 99], 0).unwrap()
+        intcode::run_basic_intcode_program(&mut [1, 1, 1, 4, 99, 5, 6, 0, 99], 0).unwrap()
+    );
+}
+
+#[test]
+fn actual_answer() {
+    assert_eq!(
+        3706713,
+        intcode::run_basic_intcode_program(&mut MY_INPUTS.clone(), 0).unwrap()
     );
 }
