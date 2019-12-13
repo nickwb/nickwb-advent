@@ -5,7 +5,7 @@ Solutions for [Advent of Code](https://adventofcode.com/), written in Rust.
 
 | Year | Furthest Point | Total Stars |
 | ---- | -------------- | ----------- |
-| 2019 | Day 5          | 10          |
+| 2019 | Day 6          | 12          |
 
 ## Disclaimer
 Most of these solutions are not beautiful code. They may be slow, inelegant or confusing.
