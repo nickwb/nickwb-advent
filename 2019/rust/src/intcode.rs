@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::convert::TryInto;
 
 pub type MemoryCell = isize;
@@ -36,7 +37,9 @@ pub fn run_io_intcode_program(
     state: ComputerState,
     inputs: &[MemoryCell],
 ) -> IntCodeResult<MemoryCell> {
-    let mut input = SliceInput::new(inputs);
+    let mut input = BufferInput::new(inputs.len());
+    input.queue_many(inputs);
+
     let mut output = RememberLastOutput::new();
     let mut computer = Computer {
         state,
@@ -58,6 +61,7 @@ struct Computer<'a, I: InputSource, O: OutputSink> {
 enum StepResult {
     Halt,
     Continue,
+    WaitingOnInput,
 }
 
 enum Effect {
@@ -205,7 +209,10 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
         let result = match operation.op_code {
             OpCode::Add => Effect::StoreValue(get(0)? + get(1)?),
             OpCode::Multiply => Effect::StoreValue(get(0)? * get(1)?),
-            OpCode::Input => Effect::StoreValue(self.input.next()),
+            OpCode::Input => match self.input.next() {
+                Some(v) => Effect::StoreValue(v),
+                None => return Ok(StepResult::WaitingOnInput),
+            },
             OpCode::Output => Effect::OutputValue(get(0)?),
             OpCode::JumpIfTrue => {
                 if get(0)? == 0 {
@@ -327,16 +334,29 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
         Ok(operation)
     }
 
-    fn run_until_halt(&mut self) -> IntCodeResult<()> {
+    fn resume(&mut self) -> IntCodeResult<StepResult> {
         loop {
             let op = self.read_op(self.program_counter)?;
             let step = self.single_step(&op)?;
             match step {
                 StepResult::Halt => {
-                    return Ok(());
+                    return Ok(StepResult::Halt);
+                }
+                StepResult::WaitingOnInput => {
+                    return Ok(StepResult::WaitingOnInput);
                 }
                 StepResult::Continue => (),
             }
+        }
+    }
+
+    fn run_until_halt(&mut self) -> IntCodeResult<()> {
+        match self.resume()? {
+            StepResult::Halt => {
+                return Ok(());
+            }
+            StepResult::WaitingOnInput => panic!("Computer is blocked on input"),
+            StepResult::Continue => panic!("Resume stopped on continue"),
         }
     }
 
@@ -359,39 +379,45 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
 }
 
 trait InputSource {
-    fn next(&mut self) -> MemoryCell;
+    fn next(&mut self) -> Option<MemoryCell>;
 }
 
 trait OutputSink {
     fn write(&mut self, value: MemoryCell);
 }
 
-struct SliceInput<'a> {
-    next: usize,
-    inputs: &'a [MemoryCell],
+struct BufferInput {
+    buf: VecDeque<MemoryCell>,
 }
 
-impl<'a> SliceInput<'a> {
-    fn new(inputs: &'a [MemoryCell]) -> SliceInput<'a> {
-        SliceInput { next: 0, inputs }
+impl BufferInput {
+    fn new(capacity: usize) -> BufferInput {
+        BufferInput {
+            buf: VecDeque::with_capacity(capacity),
+        }
+    }
+
+    fn queue(&mut self, value: MemoryCell) {
+        self.buf.push_back(value);
+    }
+
+    fn queue_many(&mut self, values: &[MemoryCell]) {
+        for v in values {
+            self.queue(*v);
+        }
     }
 }
 
-impl<'a> InputSource for SliceInput<'a> {
-    fn next(&mut self) -> MemoryCell {
-        if self.next >= self.inputs.len() {
-            panic!("Consumed more input than was available");
-        }
-        let result = self.inputs[self.next];
-        self.next += 1;
-        result
+impl InputSource for BufferInput {
+    fn next(&mut self) -> Option<MemoryCell> {
+        self.buf.pop_front()
     }
 }
 
 struct NoInput;
 impl InputSource for NoInput {
-    fn next(&mut self) -> MemoryCell {
-        panic!("There is no input")
+    fn next(&mut self) -> Option<MemoryCell> {
+        None
     }
 }
 
