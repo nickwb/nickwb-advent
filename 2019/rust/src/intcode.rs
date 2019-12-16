@@ -25,30 +25,33 @@ pub fn run_basic_intcode_program(
     let mut computer = Computer {
         state,
         program_counter: 0,
-        input: &NoInput,
-        output: &mut ConsoleOutput,
+        input: &mut NoInput,
+        output: &mut RememberLastOutput::new(),
     };
     computer.run_until_halt()?;
     Ok(computer.get_memory_at(final_addr)?)
 }
 
-pub fn run_single_input_intcode_program(
+pub fn run_io_intcode_program(
     state: ComputerState,
-    input: MemoryCell,
-) -> IntCodeResult<()> {
+    inputs: &[MemoryCell],
+) -> IntCodeResult<MemoryCell> {
+    let mut input = SliceInput::new(inputs);
+    let mut output = RememberLastOutput::new();
     let mut computer = Computer {
         state,
         program_counter: 0,
-        input: &SingleInput { value: input },
-        output: &mut ConsoleOutput,
+        input: &mut input,
+        output: &mut output,
     };
-    computer.run_until_halt()
+    computer.run_until_halt()?;
+    Ok(output.value.expect("No output produced"))
 }
 
 struct Computer<'a, I: InputSource, O: OutputSink> {
     state: ComputerState<'a>,
     program_counter: MemoryPointer,
-    input: &'a I,
+    input: &'a mut I,
     output: &'a mut O,
 }
 
@@ -356,34 +359,55 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
 }
 
 trait InputSource {
-    fn next(&self) -> MemoryCell;
+    fn next(&mut self) -> MemoryCell;
 }
 
 trait OutputSink {
     fn write(&mut self, value: MemoryCell);
 }
 
-struct SingleInput {
-    value: MemoryCell,
+struct SliceInput<'a> {
+    next: usize,
+    inputs: &'a [MemoryCell],
 }
 
-impl InputSource for SingleInput {
-    fn next(&self) -> MemoryCell {
-        self.value
+impl<'a> SliceInput<'a> {
+    fn new(inputs: &'a [MemoryCell]) -> SliceInput<'a> {
+        SliceInput { next: 0, inputs }
+    }
+}
+
+impl<'a> InputSource for SliceInput<'a> {
+    fn next(&mut self) -> MemoryCell {
+        if self.next >= self.inputs.len() {
+            panic!("Consumed more input than was available");
+        }
+        let result = self.inputs[self.next];
+        self.next += 1;
+        result
     }
 }
 
 struct NoInput;
 impl InputSource for NoInput {
-    fn next(&self) -> MemoryCell {
+    fn next(&mut self) -> MemoryCell {
         panic!("There is no input")
     }
 }
 
-struct ConsoleOutput;
-impl OutputSink for ConsoleOutput {
+struct RememberLastOutput {
+    value: Option<MemoryCell>,
+}
+
+impl RememberLastOutput {
+    fn new() -> RememberLastOutput {
+        RememberLastOutput { value: None }
+    }
+}
+
+impl OutputSink for RememberLastOutput {
     fn write(&mut self, value: MemoryCell) {
-        println!("Output: {}", value);
+        self.value = Some(value);
     }
 }
 
@@ -394,8 +418,8 @@ fn parse_operation() {
         let computer = Computer {
             state,
             program_counter: 0,
-            input: &NoInput,
-            output: &mut ConsoleOutput,
+            input: &mut NoInput,
+            output: &mut RememberLastOutput::new(),
         };
         let operation = computer.read_op(0).unwrap();
 
@@ -409,8 +433,8 @@ fn parse_operation() {
         let computer = Computer {
             state,
             program_counter: 0,
-            input: &NoInput,
-            output: &mut ConsoleOutput,
+            input: &mut NoInput,
+            output: &mut RememberLastOutput::new(),
         };
         let operation = computer.read_op(0).unwrap();
 

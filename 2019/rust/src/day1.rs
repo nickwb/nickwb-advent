@@ -27,10 +27,10 @@ const MY_INPUTS: [i64; 100] = [
 
 pub fn run_day_one() {
     let part_one: f64 = MY_INPUTS.iter().map(|i| get_fuel(*i as f64)).sum();
-    println!("Day One. The part one result is: {}", part_one);
+    println!("Day 1, Part 1: {}", part_one);
 
     let part_two: f64 = MY_INPUTS.iter().map(|i| get_total_fuel(*i as f64)).sum();
-    println!("Day One. The part two result is: {}", part_two);
+    println!("Day 1, Part 2: {}", part_two);
 }
 
 #[test]

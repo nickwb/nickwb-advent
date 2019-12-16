@@ -39,8 +39,21 @@ const MY_INPUTS: [intcode::MemoryCell; 678] = [
 ];
 
 pub fn run_day_five() {
-    println!("Running Day 5, Part 1...");
-    intcode::run_single_input_intcode_program(&mut MY_INPUTS.clone(), 1).unwrap();
-    println!("Running Day 5, Part 2...");
-    intcode::run_single_input_intcode_program(&mut MY_INPUTS.clone(), 5).unwrap();
+    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[1]).unwrap();
+    println!("Day 5, Part 1: {}", result);
+
+    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[5]).unwrap();
+    println!("Day 5, Part 2: {}", result);
+}
+
+#[test]
+fn actual_part_1() {
+    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[1]).unwrap();
+    assert_eq!(12440243, result);
+}
+
+#[test]
+fn actual_part_2() {
+    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[5]).unwrap();
+    assert_eq!(15486302, result);
 }

@@ -12,7 +12,7 @@ const TARGET_RESULT: intcode::MemoryCell = 19690720;
 
 pub fn run_day_two() {
     let part_one = intcode::run_basic_intcode_program(&mut MY_INPUTS.clone(), 0).unwrap();
-    println!("Day Two. The part one result is: {}", part_one);
+    println!("Day 2, Part 1: {}", part_one);
 
     let mut i = 0;
     let mut j = 0;
@@ -25,7 +25,7 @@ pub fn run_day_two() {
 
         if result == TARGET_RESULT {
             let part_two = (100 * i) + j;
-            println!("Day Two. The part two result is: {}", part_two);
+            println!("Day 2, Part 2: {}", part_two);
             return;
         }
 
