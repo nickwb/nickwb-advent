@@ -1,64 +1,15 @@
-use std::collections::VecDeque;
+use super::io::{InputSource, OutputSink};
+use super::{ComputerState, IntCodeError, IntCodeResult, MemoryCell, MemoryPointer};
 use std::convert::TryInto;
 
-pub type MemoryCell = isize;
-pub type MemoryPointer = usize;
-pub type ComputerState<'a> = &'a mut [MemoryCell];
-
-#[derive(Debug)]
-pub enum IntCodeError {
-    UnknownOpCode,
-    ReadMemoryOutOfBounds,
-    WriteMemoryOutOfBounds,
-    InvalidParameterIndex,
-    UnknownParameterType,
-    OutputParameterInImmediateMode,
-    MemoryCellIsInvalidPointer,
-    EffectMismatch,
-}
-
-pub type IntCodeResult<T> = Result<T, IntCodeError>;
-
-pub fn run_basic_intcode_program(
-    state: ComputerState,
-    final_addr: MemoryPointer,
-) -> IntCodeResult<MemoryCell> {
-    let mut computer = Computer {
-        state,
-        program_counter: 0,
-        input: &mut NoInput,
-        output: &mut RememberLastOutput::new(),
-    };
-    computer.run_until_halt()?;
-    Ok(computer.get_memory_at(final_addr)?)
-}
-
-pub fn run_io_intcode_program(
-    state: ComputerState,
-    inputs: &[MemoryCell],
-) -> IntCodeResult<MemoryCell> {
-    let mut input = BufferInput::new(inputs.len());
-    input.queue_many(inputs);
-
-    let mut output = RememberLastOutput::new();
-    let mut computer = Computer {
-        state,
-        program_counter: 0,
-        input: &mut input,
-        output: &mut output,
-    };
-    computer.run_until_halt()?;
-    Ok(output.value.expect("No output produced"))
-}
-
-struct Computer<'a, I: InputSource, O: OutputSink> {
+pub struct Computer<'a, I: InputSource, O: OutputSink> {
     state: ComputerState<'a>,
     program_counter: MemoryPointer,
     input: &'a mut I,
     output: &'a mut O,
 }
 
-enum StepResult {
+pub enum StepResult {
     Halt,
     Continue,
     WaitingOnInput,
@@ -185,7 +136,20 @@ impl Operation {
     }
 }
 
-impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
+impl<'a, I: InputSource, O: OutputSink> Computer<'a, I, O> {
+    pub fn new(
+        state: &'a mut [MemoryCell],
+        input: &'a mut I,
+        output: &'a mut O,
+    ) -> Computer<'a, I, O> {
+        Computer {
+            state: state,
+            program_counter: 0,
+            input,
+            output,
+        }
+    }
+
     fn increment_for_operation(&mut self, operation: &Operation) {
         self.program_counter += operation.get_program_counter_increment();
     }
@@ -334,7 +298,7 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
         Ok(operation)
     }
 
-    fn resume(&mut self) -> IntCodeResult<StepResult> {
+    pub fn resume(&mut self) -> IntCodeResult<StepResult> {
         loop {
             let op = self.read_op(self.program_counter)?;
             let step = self.single_step(&op)?;
@@ -350,7 +314,7 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
         }
     }
 
-    fn run_until_halt(&mut self) -> IntCodeResult<()> {
+    pub fn run_until_halt(&mut self) -> IntCodeResult<()> {
         match self.resume()? {
             StepResult::Halt => {
                 return Ok(());
@@ -360,7 +324,7 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
         }
     }
 
-    fn get_memory_at(&self, index: MemoryPointer) -> IntCodeResult<MemoryCell> {
+    pub fn get_memory_at(&self, index: MemoryPointer) -> IntCodeResult<MemoryCell> {
         if index + 1 > self.state.len() {
             Err(IntCodeError::ReadMemoryOutOfBounds)
         } else {
@@ -376,103 +340,4 @@ impl<I: InputSource, O: OutputSink> Computer<'_, I, O> {
             Ok(())
         }
     }
-}
-
-trait InputSource {
-    fn next(&mut self) -> Option<MemoryCell>;
-}
-
-trait OutputSink {
-    fn write(&mut self, value: MemoryCell);
-}
-
-struct BufferInput {
-    buf: VecDeque<MemoryCell>,
-}
-
-impl BufferInput {
-    fn new(capacity: usize) -> BufferInput {
-        BufferInput {
-            buf: VecDeque::with_capacity(capacity),
-        }
-    }
-
-    fn queue(&mut self, value: MemoryCell) {
-        self.buf.push_back(value);
-    }
-
-    fn queue_many(&mut self, values: &[MemoryCell]) {
-        for v in values {
-            self.queue(*v);
-        }
-    }
-}
-
-impl InputSource for BufferInput {
-    fn next(&mut self) -> Option<MemoryCell> {
-        self.buf.pop_front()
-    }
-}
-
-struct NoInput;
-impl InputSource for NoInput {
-    fn next(&mut self) -> Option<MemoryCell> {
-        None
-    }
-}
-
-struct RememberLastOutput {
-    value: Option<MemoryCell>,
-}
-
-impl RememberLastOutput {
-    fn new() -> RememberLastOutput {
-        RememberLastOutput { value: None }
-    }
-}
-
-impl OutputSink for RememberLastOutput {
-    fn write(&mut self, value: MemoryCell) {
-        self.value = Some(value);
-    }
-}
-
-#[test]
-fn parse_operation() {
-    {
-        let state: ComputerState = &mut [1, 2, 3, 4];
-        let computer = Computer {
-            state,
-            program_counter: 0,
-            input: &mut NoInput,
-            output: &mut RememberLastOutput::new(),
-        };
-        let operation = computer.read_op(0).unwrap();
-
-        assert_eq!(OpCode::Add, operation.op_code);
-        assert_eq!(Parameter::Position(2), operation.parameters[0]);
-        assert_eq!(Parameter::Position(3), operation.parameters[1]);
-        assert_eq!(4, operation.output_address.unwrap());
-    }
-    {
-        let state: ComputerState = &mut [1002, 4, 3, 4, 33];
-        let computer = Computer {
-            state,
-            program_counter: 0,
-            input: &mut NoInput,
-            output: &mut RememberLastOutput::new(),
-        };
-        let operation = computer.read_op(0).unwrap();
-
-        assert_eq!(OpCode::Multiply, operation.op_code);
-        assert_eq!(Parameter::Position(4), operation.parameters[0]);
-        assert_eq!(Parameter::Immediate(3), operation.parameters[1]);
-        assert_eq!(4, operation.output_address.unwrap());
-    }
-}
-
-#[test]
-fn simple_program() {
-    let state: ComputerState = &mut [1, 0, 0, 0, 99];
-    assert_eq!(2, run_basic_intcode_program(state, 0).unwrap());
 }
