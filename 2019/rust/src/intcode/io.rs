@@ -15,8 +15,8 @@ pub struct BufferInput {
 
 pub struct NoInput;
 
-pub struct RememberLastOutput {
-    value: Option<MemoryCell>,
+pub struct BufferOutput {
+    values: VecDeque<MemoryCell>,
 }
 
 impl BufferInput {
@@ -49,18 +49,24 @@ impl InputSource for NoInput {
     }
 }
 
-impl RememberLastOutput {
-    pub fn new() -> RememberLastOutput {
-        RememberLastOutput { value: None }
+impl BufferOutput {
+    pub fn new() -> BufferOutput {
+        BufferOutput {
+            values: VecDeque::new(),
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<MemoryCell> {
+        self.values.pop_front()
     }
 
     pub fn last(&self) -> Option<MemoryCell> {
-        self.value
+        Some(*(self.values.iter().last()?))
     }
 }
 
-impl OutputSink for RememberLastOutput {
+impl OutputSink for BufferOutput {
     fn write(&mut self, value: MemoryCell) {
-        self.value = Some(value);
+        self.values.push_back(value);
     }
 }

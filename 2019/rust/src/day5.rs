@@ -1,6 +1,6 @@
-use crate::intcode;
+use crate::intcode::*;
 
-const MY_INPUTS: [intcode::MemoryCell; 678] = [
+const MY_INPUTS: [MemoryCell; 678] = [
     3, 225, 1, 225, 6, 6, 1100, 1, 238, 225, 104, 0, 1102, 45, 16, 225, 2, 65, 191, 224, 1001, 224,
     -3172, 224, 4, 224, 102, 8, 223, 223, 1001, 224, 5, 224, 1, 223, 224, 223, 1102, 90, 55, 225,
     101, 77, 143, 224, 101, -127, 224, 224, 4, 224, 102, 8, 223, 223, 1001, 224, 7, 224, 1, 223,
@@ -38,22 +38,27 @@ const MY_INPUTS: [intcode::MemoryCell; 678] = [
     1, 223, 223, 4, 223, 99, 226,
 ];
 
+fn inputs() -> VecStorage {
+    let r: &[MemoryCell] = &MY_INPUTS;
+    Vec::from(r)
+}
+
 pub fn run_day_five() {
-    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[1]).unwrap();
+    let result = run_io_intcode_program(inputs(), &[1]).unwrap();
     println!("Day 5, Part 1: {}", result);
 
-    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[5]).unwrap();
+    let result = run_io_intcode_program(inputs(), &[5]).unwrap();
     println!("Day 5, Part 2: {}", result);
 }
 
 #[test]
 fn actual_part_1() {
-    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[1]).unwrap();
+    let result = run_io_intcode_program(inputs(), &[1]).unwrap();
     assert_eq!(12440243, result);
 }
 
 #[test]
 fn actual_part_2() {
-    let result = intcode::run_io_intcode_program(&mut MY_INPUTS.clone(), &[5]).unwrap();
+    let result = run_io_intcode_program(inputs(), &[5]).unwrap();
     assert_eq!(15486302, result);
 }

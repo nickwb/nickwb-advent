@@ -1,12 +1,13 @@
 mod computer;
 mod io;
+mod storage;
 
 use computer::Computer;
-use io::{BufferInput, NoInput, RememberLastOutput};
+pub use io::*;
+pub use storage::*;
 
 pub type MemoryCell = isize;
 pub type MemoryPointer = usize;
-pub type ComputerState<'a> = &'a mut [MemoryCell];
 
 #[derive(Debug)]
 pub enum IntCodeError {
@@ -22,26 +23,22 @@ pub enum IntCodeError {
 
 pub type IntCodeResult<T> = Result<T, IntCodeError>;
 
-pub fn run_basic_intcode_program(
-    state: ComputerState,
+pub fn run_basic_intcode_program<S: Storage>(
+    state: S,
     final_addr: MemoryPointer,
 ) -> IntCodeResult<MemoryCell> {
-    let mut input = NoInput;
-    let mut output = RememberLastOutput::new();
-    let mut computer = Computer::new(state, &mut input, &mut output);
+    let mut computer = Computer::new(state, NoInput, BufferOutput::new());
     computer.run_until_halt()?;
-    Ok(computer.get_memory_at(final_addr)?)
+    Ok(computer.state().get(final_addr))
 }
 
-pub fn run_io_intcode_program(
-    state: ComputerState,
+pub fn run_io_intcode_program<S: Storage>(
+    state: S,
     inputs: &[MemoryCell],
 ) -> IntCodeResult<MemoryCell> {
-    let mut input = BufferInput::new(inputs.len());
-    input.queue_many(inputs);
+    let mut computer = Computer::new(state, BufferInput::new(inputs.len()), BufferOutput::new());
+    computer.input().queue_many(inputs);
 
-    let mut output = RememberLastOutput::new();
-    let mut computer = Computer::new(state, &mut input, &mut output);
     computer.run_until_halt()?;
-    Ok(output.last().expect("No output produced"))
+    Ok(computer.output().last().expect("No output produced"))
 }

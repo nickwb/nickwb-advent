@@ -1,12 +1,13 @@
 use super::io::{InputSource, OutputSink};
-use super::{ComputerState, IntCodeError, IntCodeResult, MemoryCell, MemoryPointer};
+use super::storage::Storage;
+use super::{IntCodeError, IntCodeResult, MemoryCell, MemoryPointer};
 use std::convert::TryInto;
 
-pub struct Computer<'a, I: InputSource, O: OutputSink> {
-    state: ComputerState<'a>,
+pub struct Computer<S: Storage, I: InputSource, O: OutputSink> {
+    state: S,
     program_counter: MemoryPointer,
-    input: &'a mut I,
-    output: &'a mut O,
+    input: I,
+    output: O,
 }
 
 pub enum StepResult {
@@ -136,18 +137,26 @@ impl Operation {
     }
 }
 
-impl<'a, I: InputSource, O: OutputSink> Computer<'a, I, O> {
-    pub fn new(
-        state: &'a mut [MemoryCell],
-        input: &'a mut I,
-        output: &'a mut O,
-    ) -> Computer<'a, I, O> {
+impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
+    pub fn new(state: S, input: I, output: O) -> Computer<S, I, O> {
         Computer {
             state: state,
             program_counter: 0,
             input,
             output,
         }
+    }
+
+    pub fn input(&mut self) -> &mut I {
+        &mut self.input
+    }
+
+    pub fn output(&mut self) -> &mut O {
+        &mut self.output
+    }
+
+    pub fn state(&mut self) -> &mut S {
+        &mut self.state
     }
 
     fn increment_for_operation(&mut self, operation: &Operation) {
@@ -324,19 +333,19 @@ impl<'a, I: InputSource, O: OutputSink> Computer<'a, I, O> {
         }
     }
 
-    pub fn get_memory_at(&self, index: MemoryPointer) -> IntCodeResult<MemoryCell> {
-        if index + 1 > self.state.len() {
+    fn get_memory_at(&self, index: MemoryPointer) -> IntCodeResult<MemoryCell> {
+        if index + 1 > self.state.size() {
             Err(IntCodeError::ReadMemoryOutOfBounds)
         } else {
-            Ok(self.state[index])
+            Ok(self.state.get(index))
         }
     }
 
     fn set_memory_at(&mut self, index: MemoryPointer, value: MemoryCell) -> IntCodeResult<()> {
-        if index + 1 > self.state.len() {
+        if index + 1 > self.state.size() {
             Err(IntCodeError::WriteMemoryOutOfBounds)
         } else {
-            self.state[index] = value;
+            self.state.put(index, value);
             Ok(())
         }
     }

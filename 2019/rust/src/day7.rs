@@ -1,4 +1,4 @@
-use crate::intcode::{self, ComputerState, MemoryCell};
+use crate::intcode::*;
 
 const MY_INPUTS: [MemoryCell; 511] = [
     3, 8, 1001, 8, 10, 8, 105, 1, 0, 0, 21, 38, 59, 76, 89, 106, 187, 268, 349, 430, 99999, 3, 9,
@@ -22,46 +22,78 @@ const MY_INPUTS: [MemoryCell; 511] = [
     102, 2, 9, 9, 4, 9, 99,
 ];
 
-fn try_phases(state: ComputerState, phases: &[MemoryCell]) -> MemoryCell {
-    //println!("Trying: {:?}", phases);
+fn part_one_try_phases(state: &VecStorage, phases: &[MemoryCell]) -> MemoryCell {
     phases.iter().fold(0 as MemoryCell, |o, p| {
-        let result = intcode::run_io_intcode_program(state, &[*p, o]).unwrap();
+        let result = run_io_intcode_program(state.clone(), &[*p, o]).unwrap();
         result
     })
 }
 
-fn has_no_dups(phases: &[MemoryCell]) -> bool {
-    let mut v = Vec::from(phases);
-    v.sort();
-    v.dedup();
-    v.len() == phases.len()
-}
-
-fn find_max(state: &[MemoryCell]) -> MemoryCell {
+fn part_one_find_max(state: &[MemoryCell]) -> MemoryCell {
     let state = Vec::from(state);
-    iproduct!(0..=4, 0..=4, 0..=4, 0..=4, 0..=4)
-        .filter_map(|(i, j, k, l, m)| {
-            let phases = &[i, j, k, l, m];
-            if !has_no_dups(phases) {
-                None
-            } else {
-                Some(try_phases(&mut state.clone(), phases))
-            }
-        })
+    get_permutations(&[0, 1, 2, 3, 4])
+        .iter()
+        .map(|p| part_one_try_phases(&state, p))
         .max()
         .unwrap()
 }
 
+// fn part_two_try_phases(phases: &[MemoryCell]) -> MemoryCell {
+//     let make_a_computer = |phase| {
+//         let input = intcode::BufferInput::new(2);
+//         let output = intcode::RememberLastOutput::new();
+//         let c = intcode::Computer::new(&mut MY_INPUTS.clone(), &mut input, &mut output);
+//         input.queue(phase);
+//         (input, output, c)
+//     };
+
+//     0
+// }
+
 pub fn run_day_seven() {
-    let result = find_max(&MY_INPUTS);
+    let result = part_one_find_max(&MY_INPUTS);
     println!("Day 7, Part 1: {}", result);
+}
+
+fn get_permutations(values: &[MemoryCell]) -> Vec<[MemoryCell; 5]> {
+    if values.len() != 5 {
+        panic!("Wrong size");
+    }
+
+    let mut results = Vec::new();
+    for a in 0..5 {
+        for b in 0..5 {
+            if b == a {
+                continue;
+            }
+            for c in 0..5 {
+                if c == a || c == b {
+                    continue;
+                }
+                for d in 0..5 {
+                    if d == a || d == b || d == c {
+                        continue;
+                    }
+                    for e in 0..5 {
+                        if e == a || e == b || e == c || e == d {
+                            continue;
+                        }
+                        let set = [values[a], values[b], values[c], values[d], values[e]];
+                        results.push(set);
+                    }
+                }
+            }
+        }
+    }
+
+    results
 }
 
 #[test]
 fn example_1() {
     assert_eq!(
         43210,
-        find_max(&[3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0])
+        part_one_find_max(&[3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0])
     );
 }
 
@@ -69,7 +101,7 @@ fn example_1() {
 fn example_2() {
     assert_eq!(
         54321,
-        find_max(&[
+        part_one_find_max(&[
             3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23,
             99, 0, 0
         ])
@@ -80,7 +112,7 @@ fn example_2() {
 fn example_3() {
     assert_eq!(
         65210,
-        find_max(&[
+        part_one_find_max(&[
             3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1,
             33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0
         ])
@@ -89,7 +121,7 @@ fn example_3() {
 
 #[test]
 fn actual_part_1() {
-    assert_eq!(199988, find_max(&MY_INPUTS));
+    assert_eq!(199988, part_one_find_max(&MY_INPUTS));
 }
 
 // 199988
