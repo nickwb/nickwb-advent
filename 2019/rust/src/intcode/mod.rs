@@ -2,7 +2,7 @@ mod computer;
 mod io;
 mod storage;
 
-use computer::Computer;
+pub use computer::*;
 pub use io::*;
 pub use storage::*;
 

@@ -39,14 +39,24 @@ fn part_one_find_max(state: &[MemoryCell]) -> MemoryCell {
 }
 
 // fn part_two_try_phases(phases: &[MemoryCell]) -> MemoryCell {
-//     let make_a_computer = |phase| {
-//         let input = intcode::BufferInput::new(2);
-//         let output = intcode::RememberLastOutput::new();
-//         let c = intcode::Computer::new(&mut MY_INPUTS.clone(), &mut input, &mut output);
-//         input.queue(phase);
-//         (input, output, c)
+//     let make_a_computer = |&phase| {
+//         let state: &[MemoryCell] = &MY_INPUTS;
+//         let mut c = Computer::new(Vec::from(state), BufferInput::new(2), BufferOutput::new());
+//         c.input().queue(phase);
+//         c
 //     };
 
+//     let mut computers: Vec<Computer<VecStorage, BufferInput, BufferOutput>> =
+//         phases.iter().map(make_a_computer).collect();
+
+//     computers[0].input().queue(0);
+
+//     let mut i = 0;
+//     loop {
+//         let j = if i + 1 == computers.len() { 0 } else { i + 1 };
+//         let result = computers[i].resume().unwrap();
+//         //computers[j].input().queue_many(computers[i].output().)
+//     }
 //     0
 // }
 
