@@ -38,31 +38,67 @@ fn part_one_find_max(state: &[MemoryCell]) -> MemoryCell {
         .unwrap()
 }
 
-// fn part_two_try_phases(phases: &[MemoryCell]) -> MemoryCell {
-//     let make_a_computer = |&phase| {
-//         let state: &[MemoryCell] = &MY_INPUTS;
-//         let mut c = Computer::new(Vec::from(state), BufferInput::new(2), BufferOutput::new());
-//         c.input().queue(phase);
-//         c
-//     };
+fn part_two_try_phases(state: &[MemoryCell], phases: &[MemoryCell]) -> MemoryCell {
+    let make_a_computer = |&phase| {
+        let mut c = Computer::new(Vec::from(state), BufferInput::new(2), BufferOutput::new());
+        c.input().queue(phase);
+        c
+    };
 
-//     let mut computers: Vec<Computer<VecStorage, BufferInput, BufferOutput>> =
-//         phases.iter().map(make_a_computer).collect();
+    let mut computers: Vec<Computer<VecStorage, BufferInput, BufferOutput>> =
+        phases.iter().map(make_a_computer).collect();
 
-//     computers[0].input().queue(0);
+    computers[0].input().queue(0);
 
-//     let mut i = 0;
-//     loop {
-//         let j = if i + 1 == computers.len() { 0 } else { i + 1 };
-//         let result = computers[i].resume().unwrap();
-//         //computers[j].input().queue_many(computers[i].output().)
-//     }
-//     0
-// }
+    let mut i = 0;
+    let mut result: Option<MemoryCell> = None;
+
+    loop {
+        let j = if i < computers.len() - 1 { i + 1 } else { 0 };
+        let outputs: Vec<MemoryCell>;
+
+        {
+            let this_computer = computers.get_mut(i).unwrap();
+            this_computer.resume().unwrap();
+
+            let output = this_computer.output();
+
+            if j == 0 {
+                result = output.last().or(result);
+            }
+
+            outputs = output.pop_all();
+        }
+
+        {
+            let next_computer = computers.get_mut(j).unwrap();
+
+            if next_computer.has_halted() {
+                return result.expect("Got to the end of the chain, but there was no result");
+            }
+
+            next_computer.input().queue_many(&outputs);
+        }
+
+        i = j;
+    }
+}
+
+fn part_two_find_max(state: &[MemoryCell]) -> MemoryCell {
+    let state = Vec::from(state);
+    get_permutations(&[5, 6, 7, 8, 9])
+        .iter()
+        .map(|p| part_two_try_phases(&state, p))
+        .max()
+        .unwrap()
+}
 
 pub fn run_day_seven() {
     let result = part_one_find_max(&MY_INPUTS);
     println!("Day 7, Part 1: {}", result);
+
+    let result = part_two_find_max(&MY_INPUTS);
+    println!("Day 7, Part 2: {}", result);
 }
 
 fn get_permutations(values: &[MemoryCell]) -> Vec<[MemoryCell; 5]> {
@@ -130,8 +166,34 @@ fn example_3() {
 }
 
 #[test]
+fn example_4() {
+    assert_eq!(
+        139629729,
+        part_two_find_max(&[
+            3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
+            28, 1005, 28, 6, 99, 0, 0, 5
+        ])
+    );
+}
+
+#[test]
+fn example_5() {
+    assert_eq!(
+        18216,
+        part_two_find_max(&[
+            3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54,
+            -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4,
+            53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10
+        ])
+    );
+}
+
+#[test]
 fn actual_part_1() {
     assert_eq!(199988, part_one_find_max(&MY_INPUTS));
 }
 
-// 199988
+#[test]
+fn actual_part_2() {
+    assert_eq!(17519904, part_two_find_max(&MY_INPUTS));
+}

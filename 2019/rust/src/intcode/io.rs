@@ -63,6 +63,14 @@ impl BufferOutput {
     pub fn last(&self) -> Option<MemoryCell> {
         Some(*(self.values.iter().last()?))
     }
+
+    pub fn pop_all(&mut self) -> Vec<MemoryCell> {
+        let mut result: Vec<MemoryCell> = Vec::with_capacity(self.values.len());
+        while let Some(x) = self.pop() {
+            result.push(x);
+        }
+        result
+    }
 }
 
 impl OutputSink for BufferOutput {

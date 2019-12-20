@@ -8,6 +8,7 @@ pub struct Computer<S: Storage, I: InputSource, O: OutputSink> {
     program_counter: MemoryPointer,
     input: I,
     output: O,
+    has_halted: bool,
 }
 
 pub enum StepResult {
@@ -142,6 +143,7 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
         Computer {
             state: state,
             program_counter: 0,
+            has_halted: false,
             input,
             output,
         }
@@ -159,8 +161,27 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
         &mut self.state
     }
 
+    pub fn has_halted(&self) -> bool {
+        self.has_halted
+    }
+
     fn increment_for_operation(&mut self, operation: &Operation) {
         self.program_counter += operation.get_program_counter_increment();
+    }
+
+    fn get_input(&mut self) -> Option<MemoryCell> {
+        let result = self.input.next();
+        // match &result {
+        //     Some(v) => println!("Read input: {}", *v),
+        //     None => println!("No input available"),
+        // }
+
+        result
+    }
+
+    fn put_output(&mut self, value: MemoryCell) {
+        // println!("Writing output: {}", value);
+        self.output.write(value)
     }
 
     fn single_step(&mut self, operation: &Operation) -> IntCodeResult<StepResult> {
@@ -182,7 +203,7 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
         let result = match operation.op_code {
             OpCode::Add => Effect::StoreValue(get(0)? + get(1)?),
             OpCode::Multiply => Effect::StoreValue(get(0)? * get(1)?),
-            OpCode::Input => match self.input.next() {
+            OpCode::Input => match self.get_input() {
                 Some(v) => Effect::StoreValue(v),
                 None => return Ok(StepResult::WaitingOnInput),
             },
@@ -230,7 +251,7 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
                 Ok(StepResult::Continue)
             }
             (Effect::OutputValue(value), None) => {
-                self.output.write(value);
+                self.put_output(value);
                 self.increment_for_operation(operation);
                 Ok(StepResult::Continue)
             }
@@ -308,11 +329,16 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
     }
 
     pub fn resume(&mut self) -> IntCodeResult<StepResult> {
+        if self.has_halted {
+            return Ok(StepResult::Halt);
+        }
+
         loop {
             let op = self.read_op(self.program_counter)?;
             let step = self.single_step(&op)?;
             match step {
                 StepResult::Halt => {
+                    self.has_halted = true;
                     return Ok(StepResult::Halt);
                 }
                 StepResult::WaitingOnInput => {
