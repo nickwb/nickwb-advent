@@ -1,14 +1,18 @@
 use super::io::{InputSource, OutputSink};
 use super::storage::Storage;
 use super::{IntCodeError, IntCodeResult, MemoryCell, MemoryPointer};
+use std::collections::HashMap;
 use std::convert::TryInto;
+use std::io::Write;
 
 pub struct Computer<S: Storage, I: InputSource, O: OutputSink> {
     state: S,
     program_counter: MemoryPointer,
+    relative_base: MemoryCell,
     input: I,
     output: O,
     has_halted: bool,
+    extra_memory: Option<HashMap<MemoryPointer, MemoryCell>>,
 }
 
 pub enum StepResult {
@@ -17,17 +21,26 @@ pub enum StepResult {
     WaitingOnInput,
 }
 
+fn debug_log(args: std::fmt::Arguments) {
+    //let mut output = std::io::sink(); // std::io::stdout
+    let mut output = std::io::stdout(); // std::io::stdout
+    writeln!(&mut output, "{}", args).expect("Failed to write debug log");
+}
+
+#[derive(Debug)]
 enum Effect {
     NoOp,
     StoreValue(MemoryCell),
     OutputValue(MemoryCell),
     Jump(MemoryPointer),
+    SetRelativeBase(MemoryCell),
 }
 
 #[derive(Debug, PartialEq)]
 enum Parameter {
     Position(MemoryPointer),
     Immediate(MemoryCell),
+    Relative(MemoryCell),
 }
 
 #[derive(Debug)]
@@ -55,6 +68,7 @@ enum OpCode {
     JumpIfFalse,
     LessThan,
     Equals,
+    SetRelativeBase,
     Halt,
 }
 
@@ -69,6 +83,7 @@ impl OpCode {
             "06" => OpCode::JumpIfFalse,
             "07" => OpCode::LessThan,
             "08" => OpCode::Equals,
+            "09" => OpCode::SetRelativeBase,
             "99" => OpCode::Halt,
             _ => {
                 return Err(IntCodeError::UnknownOpCode);
@@ -110,6 +125,10 @@ impl OpCode {
                 inputs: 2,
                 has_output_parameter: true,
             },
+            OpCode::SetRelativeBase => ParameterTypes {
+                inputs: 1,
+                has_output_parameter: false,
+            },
             OpCode::Halt => ParameterTypes {
                 inputs: 0,
                 has_output_parameter: false,
@@ -143,10 +162,16 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
         Computer {
             state: state,
             program_counter: 0,
+            relative_base: 0,
             has_halted: false,
             input,
             output,
+            extra_memory: None,
         }
+    }
+
+    pub fn enable_extra_memory(&mut self) {
+        self.extra_memory = Some(HashMap::new());
     }
 
     pub fn input(&mut self) -> &mut I {
@@ -166,21 +191,22 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
     }
 
     fn increment_for_operation(&mut self, operation: &Operation) {
-        self.program_counter += operation.get_program_counter_increment();
+        let increment = operation.get_program_counter_increment();
+        self.program_counter += increment;
     }
 
     fn get_input(&mut self) -> Option<MemoryCell> {
         let result = self.input.next();
-        // match &result {
-        //     Some(v) => println!("Read input: {}", *v),
-        //     None => println!("No input available"),
-        // }
+        match &result {
+            Some(v) => debug_log(format_args!("Read input: {}", *v)),
+            None => debug_log(format_args!("No input available")),
+        }
 
         result
     }
 
     fn put_output(&mut self, value: MemoryCell) {
-        // println!("Writing output: {}", value);
+        debug_log(format_args!("Writing output: {}", value));
         self.output.write(value)
     }
 
@@ -197,6 +223,13 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             match param {
                 Parameter::Immediate(val) => Ok(*val),
                 Parameter::Position(addr) => self.get_memory_at(*addr),
+                Parameter::Relative(offset) => {
+                    debug_log(format_args!(
+                        "Relative Deref: {} + {}",
+                        self.relative_base, *offset
+                    ));
+                    self.get_memory_at(cast_cell_to_pointer(self.relative_base + *offset)?)
+                }
             }
         };
 
@@ -236,8 +269,11 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
                     Effect::StoreValue(0)
                 }
             }
+            OpCode::SetRelativeBase => Effect::SetRelativeBase(get(0)?),
             _ => Effect::NoOp,
         };
+
+        debug_log(format_args!("Effect: {:?}", result));
 
         let effect_states = (result, operation.output_address);
         match effect_states {
@@ -257,6 +293,12 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             }
             (Effect::Jump(addr), None) => {
                 self.program_counter = addr;
+                Ok(StepResult::Continue)
+            }
+            (Effect::SetRelativeBase(offset), None) => {
+                self.relative_base += offset;
+                debug_log(format_args!("Relative Base = {}", self.relative_base));
+                self.increment_for_operation(operation);
                 Ok(StepResult::Continue)
             }
             _ => Err(IntCodeError::EffectMismatch),
@@ -284,6 +326,12 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             Ok(Parameter::Immediate(value))
         };
 
+        // Make a relative parameter by reading a memory offset from the given index
+        let make_relative = |idx: usize| {
+            let offset: MemoryCell = self.get_memory_at(from + 1 + idx)?;
+            Ok(Parameter::Relative(offset))
+        };
+
         // Build a parameter by determining its type and reading its location/value
         let build_parameter = |idx: usize| {
             if idx + 1 > parameter_types.inputs {
@@ -295,6 +343,7 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             match mode {
                 "0" => make_positional(idx),
                 "1" => make_immediate(idx),
+                "2" => make_relative(idx),
                 _ => {
                     return Err(IntCodeError::UnknownParameterType);
                 }
@@ -309,6 +358,9 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             // If we have an output address, find it immediately after the input parameters
             match make_positional(parameter_types.inputs) {
                 Ok(Parameter::Position(p)) => Some(p),
+                Ok(Parameter::Relative(_offset)) => {
+                    return Err(IntCodeError::OutputParameterInRelativeMode)
+                }
                 Ok(Parameter::Immediate(_)) => {
                     return Err(IntCodeError::OutputParameterInImmediateMode)
                 }
@@ -324,6 +376,11 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             parameters: parameters,
             output_address: output,
         };
+
+        debug_log(format_args!(
+            "Operation #{} [{}] is {:?}",
+            from, digits, operation
+        ));
 
         Ok(operation)
     }
@@ -361,7 +418,13 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
 
     fn get_memory_at(&self, index: MemoryPointer) -> IntCodeResult<MemoryCell> {
         if index + 1 > self.state.size() {
-            Err(IntCodeError::ReadMemoryOutOfBounds)
+            match &self.extra_memory {
+                Some(mem) => {
+                    let value = *mem.get(&index).unwrap_or(&0);
+                    Ok(value)
+                }
+                None => Err(IntCodeError::ReadMemoryOutOfBounds),
+            }
         } else {
             Ok(self.state.get(index))
         }
@@ -369,7 +432,13 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
 
     fn set_memory_at(&mut self, index: MemoryPointer, value: MemoryCell) -> IntCodeResult<()> {
         if index + 1 > self.state.size() {
-            Err(IntCodeError::WriteMemoryOutOfBounds)
+            match &mut self.extra_memory {
+                Some(mem) => {
+                    mem.entry(index).and_modify(|e| *e = value).or_insert(value);
+                    Ok(())
+                }
+                None => Err(IntCodeError::WriteMemoryOutOfBounds),
+            }
         } else {
             self.state.put(index, value);
             Ok(())

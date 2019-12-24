@@ -40,7 +40,7 @@ fn part_one_find_max(state: &[MemoryCell]) -> MemoryCell {
 
 fn part_two_try_phases(state: &[MemoryCell], phases: &[MemoryCell]) -> MemoryCell {
     let make_a_computer = |&phase| {
-        let mut c = Computer::new(Vec::from(state), BufferInput::new(2), BufferOutput::new());
+        let mut c = Computer::new(Vec::from(state), BufferInput::new(2), BufferOutput::new(1));
         c.input().queue(phase);
         c
     };

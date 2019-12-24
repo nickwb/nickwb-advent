@@ -50,9 +50,9 @@ impl InputSource for NoInput {
 }
 
 impl BufferOutput {
-    pub fn new() -> BufferOutput {
+    pub fn new(capacity: usize) -> BufferOutput {
         BufferOutput {
-            values: VecDeque::new(),
+            values: VecDeque::with_capacity(capacity),
         }
     }
 

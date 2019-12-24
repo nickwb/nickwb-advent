@@ -17,6 +17,7 @@ pub enum IntCodeError {
     InvalidParameterIndex,
     UnknownParameterType,
     OutputParameterInImmediateMode,
+    OutputParameterInRelativeMode,
     MemoryCellIsInvalidPointer,
     EffectMismatch,
 }
@@ -27,7 +28,7 @@ pub fn run_basic_intcode_program<S: Storage>(
     state: S,
     final_addr: MemoryPointer,
 ) -> IntCodeResult<MemoryCell> {
-    let mut computer = Computer::new(state, NoInput, BufferOutput::new());
+    let mut computer = Computer::new(state, NoInput, BufferOutput::new(0));
     computer.run_until_halt()?;
     Ok(computer.state().get(final_addr))
 }
@@ -36,7 +37,7 @@ pub fn run_io_intcode_program<S: Storage>(
     state: S,
     inputs: &[MemoryCell],
 ) -> IntCodeResult<MemoryCell> {
-    let mut computer = Computer::new(state, BufferInput::new(inputs.len()), BufferOutput::new());
+    let mut computer = Computer::new(state, BufferInput::new(inputs.len()), BufferOutput::new(1));
     computer.input().queue_many(inputs);
 
     computer.run_until_halt()?;
