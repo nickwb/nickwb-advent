@@ -7,12 +7,10 @@ mod day4;
 mod day5;
 mod day6;
 mod day7;
+mod day8;
 
 #[macro_use]
 extern crate lazy_static;
-
-#[macro_use]
-extern crate itertools;
 
 fn main() {
     day1::run_day_one();
@@ -22,4 +20,5 @@ fn main() {
     day5::run_day_five();
     day6::run_day_six();
     day7::run_day_seven();
+    day8::run_day_eight();
 }
