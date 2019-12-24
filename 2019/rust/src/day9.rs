@@ -1,13 +1,19 @@
 use crate::intcode::*;
 
-pub fn run_day_nine() {
+fn run_with_input(input: MemoryCell) -> Vec<MemoryCell> {
     let state: &[MemoryCell] = &MY_INPUTS;
     let mut computer = Computer::new(Vec::from(state), BufferInput::new(1), BufferOutput::new(1));
     computer.enable_extra_memory();
-    computer.input().queue(1);
+    computer.input().queue(input);
     computer.run_until_halt().unwrap();
     let output = computer.output();
-    println!("Day 9, Part 1: {:?}", output.pop_all());
+    output.pop_all()
+}
+
+pub fn run_day_nine() {
+    println!("Day 9, Part 1: {:?}", run_with_input(1));
+    #[cfg(slow_problems)]
+    println!("Day 9, Part 2: {:?}", run_with_input(2));
 }
 
 #[test]
@@ -45,13 +51,13 @@ fn example_3() {
 
 #[test]
 fn actual_part_1() {
-    let state: &[MemoryCell] = &MY_INPUTS;
-    let mut computer = Computer::new(Vec::from(state), BufferInput::new(1), BufferOutput::new(1));
-    computer.enable_extra_memory();
-    computer.input().queue(1);
-    computer.run_until_halt().unwrap();
-    let output = computer.output();
-    assert_eq!(vec!(3601950151), output.pop_all());
+    assert_eq!(vec!(3601950151), run_with_input(1));
+}
+
+#[test]
+#[cfg(slow_problems)]
+fn actual_part_2() {
+    assert_eq!(vec!(64236), run_with_input(2));
 }
 
 const MY_INPUTS: [MemoryCell; 973] = [

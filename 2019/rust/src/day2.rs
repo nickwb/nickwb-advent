@@ -8,15 +8,11 @@ const MY_INPUTS: [MemoryCell; 129] = [
     107, 2, 9, 107, 111, 1, 5, 111, 115, 1, 115, 2, 119, 1, 9, 119, 0, 99, 2, 0, 14, 0,
 ];
 
-const TARGET_RESULT: MemoryCell = 19690720;
-
-pub fn run_day_two() {
-    let part_one = run_basic_intcode_program(slice_storage(&mut MY_INPUTS.clone()), 0).unwrap();
-    println!("Day 2, Part 1: {}", part_one);
-
+#[cfg(slow_problems)]
+fn find_required_values() -> isize {
+    const TARGET_RESULT: MemoryCell = 19690720;
     let mut i = 0;
     let mut j = 0;
-
     loop {
         let mut inputs = MY_INPUTS.clone();
         let state = slice_storage(&mut inputs);
@@ -26,8 +22,7 @@ pub fn run_day_two() {
 
         if result == TARGET_RESULT {
             let part_two = (100 * i) + j;
-            println!("Day 2, Part 2: {}", part_two);
-            return;
+            return part_two;
         }
 
         if result > TARGET_RESULT {
@@ -39,6 +34,16 @@ pub fn run_day_two() {
             i += 1;
             j = 0;
         }
+    }
+}
+
+pub fn run_day_two() {
+    let part_one = run_basic_intcode_program(slice_storage(&mut MY_INPUTS.clone()), 0).unwrap();
+    println!("Day 2, Part 1: {}", part_one);
+
+    #[cfg(slow_problems)]
+    {
+        println!("Day 2, Part 2: {}", find_required_values());
     }
 }
 
