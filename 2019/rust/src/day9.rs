@@ -7,7 +7,7 @@ pub fn run_day_nine() {
     computer.input().queue(1);
     computer.run_until_halt().unwrap();
     let output = computer.output();
-    assert_eq!(vec!(42), output.pop_all());
+    println!("Day 9, Part 1: {:?}", output.pop_all());
 }
 
 #[test]
@@ -41,6 +41,17 @@ fn example_3() {
     computer.run_until_halt().unwrap();
     let result = computer.output().last().unwrap();
     assert_eq!(1125899906842624, result);
+}
+
+#[test]
+fn actual_part_1() {
+    let state: &[MemoryCell] = &MY_INPUTS;
+    let mut computer = Computer::new(Vec::from(state), BufferInput::new(1), BufferOutput::new(1));
+    computer.enable_extra_memory();
+    computer.input().queue(1);
+    computer.run_until_halt().unwrap();
+    let output = computer.output();
+    assert_eq!(vec!(3601950151), output.pop_all());
 }
 
 const MY_INPUTS: [MemoryCell; 973] = [

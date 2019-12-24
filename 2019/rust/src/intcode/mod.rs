@@ -17,7 +17,6 @@ pub enum IntCodeError {
     InvalidParameterIndex,
     UnknownParameterType,
     OutputParameterInImmediateMode,
-    OutputParameterInRelativeMode,
     MemoryCellIsInvalidPointer,
     EffectMismatch,
 }

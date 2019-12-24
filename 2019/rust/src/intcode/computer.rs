@@ -22,8 +22,8 @@ pub enum StepResult {
 }
 
 fn debug_log(args: std::fmt::Arguments) {
-    //let mut output = std::io::sink(); // std::io::stdout
-    let mut output = std::io::stdout(); // std::io::stdout
+    let mut output = std::io::sink();
+    //let mut output = std::io::stdout();
     writeln!(&mut output, "{}", args).expect("Failed to write debug log");
 }
 
@@ -141,8 +141,8 @@ impl OpCode {
 struct Operation {
     op_code: OpCode,
     parameter_types: ParameterTypes,
-    parameters: Vec<Parameter>,
-    output_address: Option<MemoryPointer>,
+    inputs: Vec<Parameter>,
+    output: Option<Parameter>,
 }
 
 fn cast_cell_to_pointer(value: MemoryCell) -> IntCodeResult<MemoryPointer> {
@@ -210,6 +210,14 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
         self.output.write(value)
     }
 
+    fn resolve_parameter_address(&self, parameter: &Parameter) -> IntCodeResult<MemoryPointer> {
+        match parameter {
+            Parameter::Immediate(_) => Err(IntCodeError::OutputParameterInImmediateMode),
+            Parameter::Position(addr) => Ok(*addr),
+            Parameter::Relative(offset) => cast_cell_to_pointer(self.relative_base + *offset),
+        }
+    }
+
     fn single_step(&mut self, operation: &Operation) -> IntCodeResult<StepResult> {
         if let OpCode::Halt = operation.op_code {
             return Ok(StepResult::Halt);
@@ -217,19 +225,12 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
 
         let get = |idx: usize| {
             let param = operation
-                .parameters
+                .inputs
                 .get(idx)
                 .ok_or(IntCodeError::InvalidParameterIndex)?;
             match param {
                 Parameter::Immediate(val) => Ok(*val),
-                Parameter::Position(addr) => self.get_memory_at(*addr),
-                Parameter::Relative(offset) => {
-                    debug_log(format_args!(
-                        "Relative Deref: {} + {}",
-                        self.relative_base, *offset
-                    ));
-                    self.get_memory_at(cast_cell_to_pointer(self.relative_base + *offset)?)
-                }
+                p => self.get_memory_at(self.resolve_parameter_address(p)?),
             }
         };
 
@@ -275,13 +276,14 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
 
         debug_log(format_args!("Effect: {:?}", result));
 
-        let effect_states = (result, operation.output_address);
+        let effect_states = (result, &operation.output);
         match effect_states {
             (Effect::NoOp, None) => {
                 self.increment_for_operation(operation);
                 Ok(StepResult::Continue)
             }
-            (Effect::StoreValue(value), Some(addr)) => {
+            (Effect::StoreValue(value), Some(output)) => {
+                let addr = self.resolve_parameter_address(&output)?;
                 self.set_memory_at(addr, value)?;
                 self.increment_for_operation(operation);
                 Ok(StepResult::Continue)
@@ -297,7 +299,6 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             }
             (Effect::SetRelativeBase(offset), None) => {
                 self.relative_base += offset;
-                debug_log(format_args!("Relative Base = {}", self.relative_base));
                 self.increment_for_operation(operation);
                 Ok(StepResult::Continue)
             }
@@ -334,7 +335,7 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
 
         // Build a parameter by determining its type and reading its location/value
         let build_parameter = |idx: usize| {
-            if idx + 1 > parameter_types.inputs {
+            if idx >= parameter_types.inputs + 1 {
                 return Err(IntCodeError::InvalidParameterIndex);
             }
 
@@ -355,17 +356,12 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
             .collect::<IntCodeResult<Vec<_>>>()?;
 
         let output = if parameter_types.has_output_parameter {
-            // If we have an output address, find it immediately after the input parameters
-            match make_positional(parameter_types.inputs) {
-                Ok(Parameter::Position(p)) => Some(p),
-                Ok(Parameter::Relative(_offset)) => {
-                    return Err(IntCodeError::OutputParameterInRelativeMode)
-                }
-                Ok(Parameter::Immediate(_)) => {
-                    return Err(IntCodeError::OutputParameterInImmediateMode)
-                }
-                Err(e) => return Err(e),
+            // If we have an output parameter, find it immediately after the inputs
+            let param = build_parameter(parameter_types.inputs)?;
+            if let Parameter::Immediate(_) = param {
+                return Err(IntCodeError::OutputParameterInImmediateMode);
             }
+            Some(param)
         } else {
             None
         };
@@ -373,8 +369,8 @@ impl<S: Storage, I: InputSource, O: OutputSink> Computer<S, I, O> {
         let operation = Operation {
             op_code: op_code,
             parameter_types: parameter_types,
-            parameters: parameters,
-            output_address: output,
+            inputs: parameters,
+            output: output,
         };
 
         debug_log(format_args!(
