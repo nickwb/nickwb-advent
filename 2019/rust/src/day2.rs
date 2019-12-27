@@ -1,4 +1,5 @@
 use crate::intcode::*;
+use rayon::prelude::*;
 
 const MY_INPUTS: [MemoryCell; 129] = [
     1, 12, 2, 3, 1, 1, 2, 3, 1, 3, 4, 3, 1, 5, 0, 3, 2, 1, 10, 19, 1, 6, 19, 23, 1, 13, 23, 27, 1,
@@ -8,43 +9,30 @@ const MY_INPUTS: [MemoryCell; 129] = [
     107, 2, 9, 107, 111, 1, 5, 111, 115, 1, 115, 2, 119, 1, 9, 119, 0, 99, 2, 0, 14, 0,
 ];
 
-#[cfg(slow_problems)]
 fn find_required_values() -> isize {
     const TARGET_RESULT: MemoryCell = 19690720;
-    let mut i = 0;
-    let mut j = 0;
-    loop {
-        let mut inputs = MY_INPUTS.clone();
-        let state = slice_storage(&mut inputs);
-        state[1] = i;
-        state[2] = j;
-        let result = run_basic_intcode_program(state, 0).unwrap();
+    let found = (0..=9999isize)
+        .into_par_iter()
+        .map(|x| {
+            let i = x / 100;
+            let j = x % 100;
+            let mut inputs = MY_INPUTS.clone();
+            let state = slice_storage(&mut inputs);
+            state[1] = i;
+            state[2] = j;
+            let result = run_basic_intcode_program(state, 0).unwrap();
+            (x, result)
+        })
+        .find_any(|(_x, result)| *result == TARGET_RESULT)
+        .unwrap();
 
-        if result == TARGET_RESULT {
-            let part_two = (100 * i) + j;
-            return part_two;
-        }
-
-        if result > TARGET_RESULT {
-            i += 1;
-            j = 0;
-        } else if j < 99 {
-            j += 1;
-        } else {
-            i += 1;
-            j = 0;
-        }
-    }
+    found.0
 }
 
 pub fn run_day_two() {
     let part_one = run_basic_intcode_program(slice_storage(&mut MY_INPUTS.clone()), 0).unwrap();
     println!("Day 2, Part 1: {}", part_one);
-
-    #[cfg(slow_problems)]
-    {
-        println!("Day 2, Part 2: {}", find_required_values());
-    }
+    println!("Day 2, Part 2: {}", find_required_values());
 }
 
 #[test]
@@ -80,9 +68,14 @@ fn example_4() {
 }
 
 #[test]
-fn actual_answer() {
+fn actual_part_1() {
     assert_eq!(
         3706713,
         run_basic_intcode_program(slice_storage(&mut MY_INPUTS.clone()), 0).unwrap()
     );
+}
+
+#[test]
+fn actual_part_2() {
+    assert_eq!(8609, find_required_values());
 }
