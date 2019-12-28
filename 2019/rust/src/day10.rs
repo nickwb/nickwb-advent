@@ -1,29 +1,28 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::iter::FromIterator;
+use std::ops::Add;
 
 type Dimension = isize;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
-struct Point(Dimension, Dimension);
+struct Point {
+    x: Dimension,
+    y: Dimension,
+}
 
 impl Point {
-    fn x(&self) -> Dimension {
-        self.0
-    }
-    fn y(&self) -> Dimension {
-        self.1
+    fn xy(x: Dimension, y: Dimension) -> Point {
+        Point { x, y }
     }
 }
 
-enum Occupancy {
-    Empty,
-    Asteroid,
-}
+impl Add for Point {
+    type Output = Point;
 
-struct Space {
-    point: Point,
-    occupancy: Occupancy,
+    fn add(self, other: Point) -> Point {
+        Point::xy(self.x + other.x, self.y + other.y)
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -33,73 +32,63 @@ struct Map {
     asteroids: HashSet<Point>,
 }
 
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-impl Direction {
-    fn turn_right(&self) -> Direction {
-        match self {
-            Direction::Down => Direction::Left,
-            Direction::Left => Direction::Up,
-            Direction::Up => Direction::Right,
-            Direction::Right => Direction::Down,
-        }
-    }
-
-    fn traverse(&self, point: Point) -> Point {
-        match self {
-            Direction::Down => Point(point.x(), point.y() + 1),
-            Direction::Left => Point(point.x() - 1, point.y()),
-            Direction::Up => Point(point.x(), point.y() - 1),
-            Direction::Right => Point(point.x() + 1, point.y()),
-        }
-    }
-}
-
-struct SpiralMovement {
-    next: Point,
-    min: Point,
-    max: Point,
-    direction: Direction,
-}
-
 struct SpiralIter<'a> {
     map: &'a Map,
-    start: Point,
-    movement: Option<SpiralMovement>,
+    position: Point,
+    side_length: Dimension,
+    direction: Point,
+    step: Dimension,
+    turns: usize,
+    complete: bool,
 }
 
 impl<'a> SpiralIter<'a> {
     fn begin(map: &'a Map, start: Point) -> SpiralIter<'a> {
         SpiralIter {
             map,
-            start,
-            movement: None,
+            position: Point::xy(start.x, start.y),
+            side_length: 1,
+            direction: Point::xy(0, 1), // Downwards
+            step: 0,
+            turns: 0,
+            complete: false,
         }
     }
 }
 
 impl<'a> Iterator for SpiralIter<'a> {
-    type Item = Space;
+    type Item = Point;
 
-    fn next(&mut self) -> Option<Space> {
+    fn next(&mut self) -> Option<Point> {
         loop {
-            if let None = self.movement {
-                let dir = Direction::Down;
-                self.movement = Some(SpiralMovement {
-                    next: dir.traverse(self.start),
-                    min: Point(0, 0),
-                    max: Point(0, 0),
-                    direction: dir,
-                });
-                return Some(Space {
-                    point: self.start,
-                    occupancy: Occupancy::Empty,
-                });
+            if self.complete {
+                return None;
+            }
+            // Are we ready to turn?
+            if self.step == self.side_length {
+                // Rotate right
+                self.direction = Point::xy(-1 * self.direction.y, self.direction.x);
+                self.turns += 1;
+                self.step = 0;
+                // Every second turn, the length gets 1 unit longer
+                if self.turns % 2 == 0 {
+                    self.side_length += 1;
+
+                    // The spiral is now bigger than the map
+                    if self.side_length > self.map.height && self.side_length > self.map.width {
+                        self.complete = true;
+                    }
+                }
+            }
+            // Item to return is wherever we were at the start of this iteration
+            let next = self.position;
+            // Now update to the new position
+            self.position = self.position + self.direction;
+            self.step += 1;
+
+            // Return this position from the iterator if its within bounds
+            if next.x >= 0 && next.x < self.map.width && next.y >= 0 && next.y < self.map.height {
+                return Some(next);
             }
         }
     }
@@ -125,7 +114,7 @@ impl Map {
                 }
                 let asteroids = line.chars().enumerate().filter_map(|(i, c)| {
                     if c == '#' {
-                        Some(Point(i.try_into().ok()?, y))
+                        Some(Point::xy(i.try_into().ok()?, y))
                     } else {
                         None
                     }
@@ -139,6 +128,10 @@ impl Map {
         );
         map
     }
+
+    fn spiral(&self, start: Point) -> SpiralIter {
+        SpiralIter::begin(self, start)
+    }
 }
 
 #[test]
@@ -151,17 +144,19 @@ fn example_1() {
 ...##";
 
     let asteroids = [
-        Point(1, 0),
-        Point(4, 0),
-        Point(0, 2),
-        Point(1, 2),
-        Point(2, 2),
-        Point(3, 2),
-        Point(4, 2),
-        Point(4, 3),
-        Point(3, 4),
-        Point(4, 4),
+        Point::xy(1, 0),
+        Point::xy(4, 0),
+        Point::xy(0, 2),
+        Point::xy(1, 2),
+        Point::xy(2, 2),
+        Point::xy(3, 2),
+        Point::xy(4, 2),
+        Point::xy(4, 3),
+        Point::xy(3, 4),
+        Point::xy(4, 4),
     ];
+
+    let map = Map::from_string(s).unwrap();
 
     assert_eq!(
         Map {
@@ -169,6 +164,11 @@ fn example_1() {
             height: 5,
             asteroids: HashSet::from_iter(asteroids.iter().copied())
         },
-        Map::from_string(s).unwrap()
+        map
     );
+
+    let i = map.spiral(Point::xy(2, 2));
+    for p in i {
+        println!("At {:?}", p);
+    }
 }
