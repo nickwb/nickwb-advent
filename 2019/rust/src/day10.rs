@@ -1,7 +1,8 @@
+use num::integer::gcd;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::iter::FromIterator;
-use std::ops::Add;
+use std::ops::{Add, Div, Mul, Sub};
 
 type Dimension = isize;
 
@@ -22,6 +23,28 @@ impl Add for Point {
 
     fn add(self, other: Point) -> Point {
         Point::xy(self.x + other.x, self.y + other.y)
+    }
+}
+
+impl Sub for Point {
+    type Output = Point;
+
+    fn sub(self, other: Point) -> Point {
+        Point::xy(self.x - other.x, self.y - other.y)
+    }
+}
+
+impl Mul<Dimension> for Point {
+    type Output = Point;
+    fn mul(self, rhs: Dimension) -> Point {
+        Point::xy(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl Div<Dimension> for Point {
+    type Output = Point;
+    fn div(self, rhs: Dimension) -> Point {
+        Point::xy(self.x / rhs, self.y / rhs)
     }
 }
 
@@ -75,7 +98,9 @@ impl<'a> Iterator for SpiralIter<'a> {
                     self.side_length += 1;
 
                     // The spiral is now bigger than the map
-                    if self.side_length > self.map.height && self.side_length > self.map.width {
+                    if self.side_length > self.map.height * 2
+                        && self.side_length > self.map.width * 2
+                    {
                         self.complete = true;
                     }
                 }
@@ -87,7 +112,7 @@ impl<'a> Iterator for SpiralIter<'a> {
             self.step += 1;
 
             // Return this position from the iterator if its within bounds
-            if next.x >= 0 && next.x < self.map.width && next.y >= 0 && next.y < self.map.height {
+            if self.map.is_in_bounds(next) {
                 return Some(next);
             }
         }
@@ -132,6 +157,60 @@ impl Map {
     fn spiral(&self, start: Point) -> SpiralIter {
         SpiralIter::begin(self, start)
     }
+
+    fn is_asteroid_at(&self, point: Point) -> bool {
+        self.asteroids.contains(&point)
+    }
+
+    fn is_in_bounds(&self, point: Point) -> bool {
+        point.x >= 0 && point.x < self.width && point.y >= 0 && point.y < self.height
+    }
+}
+
+fn evaluate_point(map: &Map, point: Point) -> usize {
+    let mut observed = 0usize;
+    let mut blind_spots: HashSet<Point> = HashSet::new();
+
+    for p in map.spiral(point) {
+        if blind_spots.contains(&p) {
+            continue;
+        }
+        if p == point {
+            continue;
+        }
+        if map.is_asteroid_at(p) {
+            observed += 1;
+            //println!("Successfully observed: {:?}", p);
+            let mut step = p - point;
+            let gcd = gcd(step.x, step.y);
+            step = step * gcd;
+
+            let mut multiple = 2;
+            loop {
+                let blind = (step * multiple) + point;
+                if map.is_in_bounds(blind) {
+                    // println!(
+                    //     "Blind Spot: {:?}, which is {} times {:?}",
+                    //     blind, multiple, step
+                    // );
+                    blind_spots.insert(blind);
+                    multiple += 1;
+                    continue;
+                }
+                break;
+            }
+        }
+    }
+
+    observed
+}
+
+fn find_best_point(map: &Map) -> (Point, usize) {
+    map.asteroids
+        .iter()
+        .map(|a| (*a, evaluate_point(map, *a)))
+        .max_by_key(|t| t.1)
+        .unwrap()
 }
 
 #[test]
@@ -143,32 +222,27 @@ fn example_1() {
 ....#
 ...##";
 
-    let asteroids = [
-        Point::xy(1, 0),
-        Point::xy(4, 0),
-        Point::xy(0, 2),
-        Point::xy(1, 2),
-        Point::xy(2, 2),
-        Point::xy(3, 2),
-        Point::xy(4, 2),
-        Point::xy(4, 3),
-        Point::xy(3, 4),
-        Point::xy(4, 4),
-    ];
+    let map = Map::from_string(s).unwrap();
+    let best = find_best_point(&map);
+    assert_eq!(8, best.1);
+}
+
+#[test]
+fn example_2() {
+    let s = "
+......#.#.
+#..#.#....
+..#######.
+.#.#.###..
+.#..#.....
+..#....#.#
+#..#....#.
+.##.#..###
+##...#..#.
+.#....####";
 
     let map = Map::from_string(s).unwrap();
-
-    assert_eq!(
-        Map {
-            width: 5,
-            height: 5,
-            asteroids: HashSet::from_iter(asteroids.iter().copied())
-        },
-        map
-    );
-
-    let i = map.spiral(Point::xy(2, 2));
-    for p in i {
-        println!("At {:?}", p);
-    }
+    let best = find_best_point(&map);
+    println!("{:?}", best.0);
+    assert_eq!(33, best.1);
 }
