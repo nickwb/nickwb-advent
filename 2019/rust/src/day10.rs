@@ -1,7 +1,7 @@
 use num::integer::gcd;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::iter::FromIterator;
 use std::ops::{Add, Div, Mul, Sub};
 
 type Dimension = isize;
@@ -167,8 +167,8 @@ impl Map {
     }
 }
 
-fn evaluate_point(map: &Map, point: Point) -> usize {
-    let mut observed = 0usize;
+fn get_observed_asteroids(map: &Map, point: Point) -> Vec<Point> {
+    let mut observed: Vec<Point> = Vec::new();
     let mut blind_spots: HashSet<Point> = HashSet::new();
 
     for p in map.spiral(point) {
@@ -179,20 +179,15 @@ fn evaluate_point(map: &Map, point: Point) -> usize {
             continue;
         }
         if map.is_asteroid_at(p) {
-            observed += 1;
-            //println!("Successfully observed: {:?}", p);
+            observed.push(p);
             let mut step = p - point;
             let gcd = gcd(step.x, step.y);
-            step = step * gcd;
+            step = step / gcd;
 
             let mut multiple = 2;
             loop {
                 let blind = (step * multiple) + point;
                 if map.is_in_bounds(blind) {
-                    // println!(
-                    //     "Blind Spot: {:?}, which is {} times {:?}",
-                    //     blind, multiple, step
-                    // );
                     blind_spots.insert(blind);
                     multiple += 1;
                     continue;
@@ -205,44 +200,170 @@ fn evaluate_point(map: &Map, point: Point) -> usize {
     observed
 }
 
+fn evaluate_point(map: &Map, point: Point) -> usize {
+    get_observed_asteroids(map, point).len()
+}
+
 fn find_best_point(map: &Map) -> (Point, usize) {
     map.asteroids
-        .iter()
+        .par_iter()
         .map(|a| (*a, evaluate_point(map, *a)))
         .max_by_key(|t| t.1)
         .unwrap()
 }
 
+fn input() -> Map {
+    let s = "
+    ..#..###....#####....###........#
+    .##.##...#.#.......#......##....#
+    #..#..##.#..###...##....#......##
+    ..####...#..##...####.#.......#.#
+    ...#.#.....##...#.####.#.###.#..#
+    #..#..##.#.#.####.#.###.#.##.....
+    #.##...##.....##.#......#.....##.
+    .#..##.##.#..#....#...#...#...##.
+    .#..#.....###.#..##.###.##.......
+    .##...#..#####.#.#......####.....
+    ..##.#.#.#.###..#...#.#..##.#....
+    .....#....#....##.####....#......
+    .#..##.#.........#..#......###..#
+    #.##....#.#..#.#....#.###...#....
+    .##...##..#.#.#...###..#.#.#..###
+    .#..##..##...##...#.#.#...#..#.#.
+    .#..#..##.##...###.##.#......#...
+    ...#.....###.....#....#..#....#..
+    .#...###..#......#.##.#...#.####.
+    ....#.##...##.#...#........#.#...
+    ..#.##....#..#.......##.##.....#.
+    .#.#....###.#.#.#.#.#............
+    #....####.##....#..###.##.#.#..#.
+    ......##....#.#.#...#...#..#.....
+    ...#.#..####.##.#.........###..##
+    .......#....#.##.......#.#.###...
+    ...#..#.#.........#...###......#.
+    .#.##.#.#.#.#........#.#.##..#...
+    .......#.##.#...........#..#.#...
+    .####....##..#..##.#.##.##..##...
+    .#.#..###.#..#...#....#.###.#..#.
+    ............#...#...#.......#.#..
+    .........###.#.....#..##..#.##...";
+
+    Map::from_string(s).unwrap()
+}
+
+fn part_one(map: &Map) -> (Point, usize) {
+    find_best_point(map)
+}
+
+pub fn run_day_ten() {
+    let map = input();
+    let p1 = part_one(&map);
+    println!("Day 10, Part 1: {} at ({}, {})", p1.1, p1.0.x, p1.0.y);
+}
+
 #[test]
 fn example_1() {
     let s = "
-.#..#
-.....
-#####
-....#
-...##";
+    .#..#
+    .....
+    #####
+    ....#
+    ...##";
 
     let map = Map::from_string(s).unwrap();
     let best = find_best_point(&map);
-    assert_eq!(8, best.1);
+    assert_eq!((Point::xy(3, 4), 8), best);
 }
 
 #[test]
 fn example_2() {
     let s = "
-......#.#.
-#..#.#....
-..#######.
-.#.#.###..
-.#..#.....
-..#....#.#
-#..#....#.
-.##.#..###
-##...#..#.
-.#....####";
+    ......#.#.
+    #..#.#....
+    ..#######.
+    .#.#.###..
+    .#..#.....
+    ..#....#.#
+    #..#....#.
+    .##.#..###
+    ##...#..#.
+    .#....####";
 
     let map = Map::from_string(s).unwrap();
     let best = find_best_point(&map);
-    println!("{:?}", best.0);
-    assert_eq!(33, best.1);
+    assert_eq!((Point::xy(5, 8), 33), best);
+}
+
+#[test]
+fn example_3() {
+    let s = "
+    #.#...#.#.
+    .###....#.
+    .#....#...
+    ##.#.#.#.#
+    ....#.#.#.
+    .##..###.#
+    ..#...##..
+    ..##....##
+    ......#...
+    .####.###.";
+
+    let map = Map::from_string(s).unwrap();
+    let best = find_best_point(&map);
+    assert_eq!((Point::xy(1, 2), 35), best);
+}
+
+#[test]
+fn example_4() {
+    let s = "
+    .#..#..###
+    ####.###.#
+    ....###.#.
+    ..###.##.#
+    ##.##.#.#.
+    ....###..#
+    ..#.#..#.#
+    #..#.#.###
+    .##...##.#
+    .....#.#..";
+
+    let map = Map::from_string(s).unwrap();
+    let best = find_best_point(&map);
+    assert_eq!((Point::xy(6, 3), 41), best);
+}
+
+#[test]
+fn example_5() {
+    let s = "
+    .#..##.###...#######
+    ##.############..##.
+    .#.######.########.#
+    .###.#######.####.#.
+    #####.##.#.##.###.##
+    ..#####..#.#########
+    ####################
+    #.####....###.#.#.##
+    ##.#################
+    #####.##.###..####..
+    ..######..##.#######
+    ####.##.####...##..#
+    .#####..#.######.###
+    ##...#.##########...
+    #.##########.#######
+    .####.#.###.###.#.##
+    ....##.##.###..#####
+    .#.#.###########.###
+    #.#.#.#####.####.###
+    ###.##.####.##.#..##";
+
+    let map = Map::from_string(s).unwrap();
+    let best = find_best_point(&map);
+    assert_eq!((Point::xy(11, 13), 210), best);
+}
+
+#[test]
+fn actual_part_1() {
+    let map = input();
+    let best = part_one(&map);
+    assert_eq!((Point::xy(27, 19), 314), best);
 }
