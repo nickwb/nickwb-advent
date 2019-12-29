@@ -1,10 +1,11 @@
 use num::integer::gcd;
 use rayon::prelude::*;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::ops::{Add, Div, Mul, Sub};
 
-type Dimension = isize;
+type Dimension = i32;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 struct Point {
@@ -48,7 +49,7 @@ impl Div<Dimension> for Point {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Map {
     width: Dimension,
     height: Dimension,
@@ -212,6 +213,44 @@ fn find_best_point(map: &Map) -> (Point, usize) {
         .unwrap()
 }
 
+fn normalise_angle(theta: f64) -> f64 {
+    let mut angle = theta;
+    while angle < 0.0 {
+        angle = angle + std::f64::consts::PI;
+    }
+    angle
+}
+
+fn get_destruction_angle(point: &Point, from: &Point) -> f64 {
+    let relative = *from - *point;
+    let x: f64 = relative.x.try_into().unwrap();
+    let y: f64 = relative.y.try_into().unwrap();
+    let theta = normalise_angle((y).atan2(x));
+    let theta = normalise_angle(-std::f64::consts::FRAC_PI_2 - theta);
+    theta
+}
+
+fn get_destruction_order(map: &mut Map, point: Point) -> Vec<Point> {
+    // Start by removing ourselves from the map
+    map.asteroids.remove(&point);
+    let mut results: Vec<Point> = Vec::new();
+    while !map.asteroids.is_empty() {
+        let mut observable = get_observed_asteroids(map, point);
+        for a in observable.iter() {
+            map.asteroids.remove(a);
+        }
+
+        observable.sort_by(|a, b| {
+            let a_angle = get_destruction_angle(a, &point);
+            let b_angle = get_destruction_angle(b, &point);
+            a_angle.partial_cmp(&b_angle).unwrap_or(Ordering::Equal)
+        });
+
+        results.append(&mut observable);
+    }
+    results
+}
+
 fn input() -> Map {
     let s = "
     ..#..###....#####....###........#
@@ -255,10 +294,17 @@ fn part_one(map: &Map) -> (Point, usize) {
     find_best_point(map)
 }
 
+fn part_two(map: &mut Map) -> Point {
+    let order = get_destruction_order(map, Point::xy(27, 19));
+    *order.get(199).unwrap()
+}
+
 pub fn run_day_ten() {
-    let map = input();
+    let mut map = input();
     let p1 = part_one(&map);
     println!("Day 10, Part 1: {} at ({}, {})", p1.1, p1.0.x, p1.0.y);
+    let p2 = part_two(&mut map);
+    println!("Day 10, Part 2: ({}, {})", p2.x, p2.y);
 }
 
 #[test]
@@ -356,9 +402,21 @@ fn example_5() {
     #.#.#.#####.####.###
     ###.##.####.##.#..##";
 
-    let map = Map::from_string(s).unwrap();
+    let mut map = Map::from_string(s).unwrap();
     let best = find_best_point(&map);
     assert_eq!((Point::xy(11, 13), 210), best);
+
+    let order = get_destruction_order(&mut map, best.0);
+    assert_eq!(Point::xy(11, 12), *order.get(0).unwrap());
+    assert_eq!(Point::xy(12, 1), *order.get(1).unwrap());
+    assert_eq!(Point::xy(12, 2), *order.get(2).unwrap());
+    assert_eq!(Point::xy(12, 8), *order.get(9).unwrap());
+    assert_eq!(Point::xy(16, 0), *order.get(19).unwrap());
+    assert_eq!(Point::xy(16, 9), *order.get(49).unwrap());
+    assert_eq!(Point::xy(10, 16), *order.get(99).unwrap());
+    assert_eq!(Point::xy(9, 6), *order.get(198).unwrap());
+    assert_eq!(Point::xy(8, 2), *order.get(199).unwrap());
+    assert_eq!(Point::xy(11, 1), *order.get(298).unwrap());
 }
 
 #[test]
