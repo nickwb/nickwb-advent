@@ -213,20 +213,29 @@ fn find_best_point(map: &Map) -> (Point, usize) {
         .unwrap()
 }
 
+const TWO_PI: f64 = (2.0 * std::f64::consts::PI);
+const PI_ON_TWO: f64 = std::f64::consts::FRAC_PI_2;
+
 fn normalise_angle(theta: f64) -> f64 {
     let mut angle = theta;
     while angle < 0.0 {
-        angle = angle + std::f64::consts::PI;
+        angle = angle + TWO_PI;
+    }
+    while angle > TWO_PI {
+        angle = angle - TWO_PI;
+    }
+    if angle.abs() <= std::f64::EPSILON || (angle - TWO_PI).abs() <= std::f64::EPSILON {
+        angle = 0.0;
     }
     angle
 }
 
 fn get_destruction_angle(point: &Point, from: &Point) -> f64 {
-    let relative = *from - *point;
-    let x: f64 = relative.x.try_into().unwrap();
-    let y: f64 = relative.y.try_into().unwrap();
-    let theta = normalise_angle((y).atan2(x));
-    let theta = normalise_angle(-std::f64::consts::FRAC_PI_2 - theta);
+    let delta = *point - *from;
+    let x: f64 = delta.x.try_into().unwrap();
+    let y: f64 = delta.y.try_into().unwrap();
+    let theta = (-y).atan2(x);
+    let theta = normalise_angle((TWO_PI - theta) + PI_ON_TWO);
     theta
 }
 
@@ -294,16 +303,16 @@ fn part_one(map: &Map) -> (Point, usize) {
     find_best_point(map)
 }
 
-fn part_two(map: &mut Map) -> Point {
-    let order = get_destruction_order(map, Point::xy(27, 19));
-    *order.get(199).unwrap()
+fn part_two(map: &mut Map, best_point: Point) -> Point {
+    let order = get_destruction_order(map, best_point);
+    order[199]
 }
 
 pub fn run_day_ten() {
     let mut map = input();
     let p1 = part_one(&map);
     println!("Day 10, Part 1: {} at ({}, {})", p1.1, p1.0.x, p1.0.y);
-    let p2 = part_two(&mut map);
+    let p2 = part_two(&mut map, p1.0);
     println!("Day 10, Part 2: ({}, {})", p2.x, p2.y);
 }
 
@@ -407,21 +416,24 @@ fn example_5() {
     assert_eq!((Point::xy(11, 13), 210), best);
 
     let order = get_destruction_order(&mut map, best.0);
-    assert_eq!(Point::xy(11, 12), *order.get(0).unwrap());
-    assert_eq!(Point::xy(12, 1), *order.get(1).unwrap());
-    assert_eq!(Point::xy(12, 2), *order.get(2).unwrap());
-    assert_eq!(Point::xy(12, 8), *order.get(9).unwrap());
-    assert_eq!(Point::xy(16, 0), *order.get(19).unwrap());
-    assert_eq!(Point::xy(16, 9), *order.get(49).unwrap());
-    assert_eq!(Point::xy(10, 16), *order.get(99).unwrap());
-    assert_eq!(Point::xy(9, 6), *order.get(198).unwrap());
-    assert_eq!(Point::xy(8, 2), *order.get(199).unwrap());
-    assert_eq!(Point::xy(11, 1), *order.get(298).unwrap());
+    assert_eq!(Point::xy(11, 12), order[0]);
+    assert_eq!(Point::xy(12, 1), order[1]);
+    assert_eq!(Point::xy(12, 2), order[2]);
+    assert_eq!(Point::xy(12, 8), order[9]);
+    assert_eq!(Point::xy(16, 0), order[19]);
+    assert_eq!(Point::xy(16, 9), order[49]);
+    assert_eq!(Point::xy(10, 16), order[99]);
+    assert_eq!(Point::xy(9, 6), order[198]);
+    assert_eq!(Point::xy(8, 2), order[199]);
+    assert_eq!(Point::xy(11, 1), order[298]);
 }
 
 #[test]
-fn actual_part_1() {
-    let map = input();
+fn actual_part_1_and_2() {
+    let mut map = input();
     let best = part_one(&map);
     assert_eq!((Point::xy(27, 19), 314), best);
+
+    let number_200 = part_two(&mut map, best.0);
+    assert_eq!(Point::xy(15, 13), number_200);
 }
