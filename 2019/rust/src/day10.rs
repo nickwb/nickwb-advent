@@ -3,51 +3,9 @@ use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::ops::{Add, Div, Mul, Sub};
 
 type Dimension = i32;
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
-struct Point {
-    x: Dimension,
-    y: Dimension,
-}
-
-impl Point {
-    fn xy(x: Dimension, y: Dimension) -> Point {
-        Point { x, y }
-    }
-}
-
-impl Add for Point {
-    type Output = Point;
-
-    fn add(self, other: Point) -> Point {
-        Point::xy(self.x + other.x, self.y + other.y)
-    }
-}
-
-impl Sub for Point {
-    type Output = Point;
-
-    fn sub(self, other: Point) -> Point {
-        Point::xy(self.x - other.x, self.y - other.y)
-    }
-}
-
-impl Mul<Dimension> for Point {
-    type Output = Point;
-    fn mul(self, rhs: Dimension) -> Point {
-        Point::xy(self.x * rhs, self.y * rhs)
-    }
-}
-
-impl Div<Dimension> for Point {
-    type Output = Point;
-    fn div(self, rhs: Dimension) -> Point {
-        Point::xy(self.x / rhs, self.y / rhs)
-    }
-}
+type Point = crate::point::Point<Dimension>;
 
 #[derive(Debug, PartialEq, Clone)]
 struct Map {
