@@ -7,7 +7,7 @@ use std::collections::HashMap;
 type Coordinate = i32;
 type Point = crate::point::Point<Coordinate>;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum Colour {
     Black,
     White,
@@ -136,16 +136,14 @@ fn find_bounds(robot: &PaintingRobot) -> (Coordinate, Coordinate, Coordinate, Co
 fn render_part_2() {
     let robot = run_robot_until_completion(Colour::White);
     let (min_x, max_x, min_y, max_y) = find_bounds(&robot);
-    for i in min_y..=max_y {
+    for i in (min_y..=max_y).rev() {
         for j in min_x..=max_x {
             match robot.get_color_at_point(&Point::xy(j, i)) {
                 Colour::Black => {
                     print!(" ");
-                    break;
                 }
                 Colour::White => {
                     print!("█");
-                    break;
                 }
             }
         }
@@ -154,7 +152,8 @@ fn render_part_2() {
 }
 
 pub fn run_day_eleven() {
-    println!("Day 8, Part 1: {}", calculate_part_1());
+    println!("Day 11, Part 1: {}", calculate_part_1());
+    println!("Day 11, Part 2:");
     render_part_2();
 }
 

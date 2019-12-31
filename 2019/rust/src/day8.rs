@@ -130,6 +130,7 @@ pub fn run_day_eight() {
     let layer = image.layers().min_by_key(|l| l.count_digits('0')).unwrap();
     let calc = layer.count_digits('1') * layer.count_digits('2');
     println!("Day 8, Part 1: {}", calc);
+    println!("Day 8, Part 2:");
     render(&image);
 }
 
