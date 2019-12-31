@@ -71,4 +71,13 @@ impl Direction {
             Direction::Right => Direction::Down,
         }
     }
+
+    pub fn turned_left(&self) -> Direction {
+        match self {
+            Direction::Up => Direction::Left,
+            Direction::Down => Direction::Right,
+            Direction::Left => Direction::Down,
+            Direction::Right => Direction::Up,
+        }
+    }
 }
