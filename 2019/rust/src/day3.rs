@@ -1,3 +1,4 @@
+use crate::direction::{CoordinateMapping, Direction, Orientation};
 use regex::Regex;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -11,51 +12,6 @@ struct Intersection {
 }
 
 type Intersections = Vec<Intersection>;
-
-#[derive(Debug, PartialEq)]
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-enum Orientation {
-    Horizontal,
-    Vertical,
-}
-
-impl Direction {
-    fn project(&self, from: &Point, distance: Grid) -> Point {
-        match self {
-            Direction::Up => Point::xy(from.x, from.y + distance),
-            Direction::Down => Point::xy(from.x, from.y - distance),
-            Direction::Left => Point::xy(from.x - distance, from.y),
-            Direction::Right => Point::xy(from.x + distance, from.y),
-        }
-    }
-}
-
-impl Direction {
-    fn from(c: &str) -> Option<Direction> {
-        match c {
-            "U" => Some(Direction::Up),
-            "D" => Some(Direction::Down),
-            "L" => Some(Direction::Left),
-            "R" => Some(Direction::Right),
-            _ => None,
-        }
-    }
-
-    fn oriented(&self) -> Orientation {
-        match self {
-            Direction::Up => Orientation::Vertical,
-            Direction::Down => Orientation::Vertical,
-            Direction::Left => Orientation::Horizontal,
-            Direction::Right => Orientation::Horizontal,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq)]
 struct Segment {
@@ -73,9 +29,9 @@ lazy_static! {
 impl Segment {
     fn new(spec: &str, start: Point, prev_length: Grid) -> Option<Segment> {
         let captures = SEGMENT_PATTERN.captures(spec)?;
-        let dir = Direction::from(captures.get(1)?.as_str())?;
+        let dir = Direction::try_parse_char(captures.get(1)?.as_str().chars().next()?)?;
         let length = captures.get(2)?.as_str().parse::<Grid>().ok()?;
-        let end = dir.project(&start, length);
+        let end = dir.translate_point(&start, length, CoordinateMapping::YIncreasesUpwards);
         Some(Segment {
             start,
             end,
@@ -104,7 +60,7 @@ impl Segment {
     fn add_intersections(&self, other: &Segment, list: &mut Intersections) {
         // First decide if it's even possible for these two segments to intersect
         // Then, go ahead and measure the intersection
-        match (self.dir.oriented(), other.dir.oriented()) {
+        match (self.dir.get_orientation(), other.dir.get_orientation()) {
             (Orientation::Horizontal, Orientation::Vertical) => {
                 if self.left_most() <= other.start.x
                     && self.right_most() >= other.start.x
@@ -158,7 +114,11 @@ impl Segment {
                 let path_length = shortest.prev_length + walk_length;
                 maybe_intersections.insert(location, path_length);
                 // Keep walking
-                location = shortest.dir.project(&location, 1);
+                location = shortest.dir.translate_point(
+                    &location,
+                    1,
+                    CoordinateMapping::YIncreasesUpwards,
+                );
                 walk_length += 1;
             }
         }
@@ -178,7 +138,10 @@ impl Segment {
                     });
                 }
                 // Keep walking
-                location = longest.dir.project(&location, 1);
+                location =
+                    longest
+                        .dir
+                        .translate_point(&location, 1, CoordinateMapping::YIncreasesUpwards);
                 walk_length += 1;
             }
         }

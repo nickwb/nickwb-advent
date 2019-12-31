@@ -1,10 +1,14 @@
-// type Coordinate = i32;
+// use std::collections::HashMap;
 
-// enum Color {
+// type Coordinate = i32;
+// type Point = crate::point::Point<Coordinate>;
+
+// enum Colour {
 //     Black,
 //     White,
 // }
 
 // struct PaintingRobot {
-//     colours: HashMap,
+//     colours: HashMap<Point, Colour>,
+//     position: Point,
 // }

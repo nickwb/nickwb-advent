@@ -1,3 +1,4 @@
+use crate::direction::{CoordinateMapping, Direction};
 use num::integer::gcd;
 use rayon::prelude::*;
 use std::cmp::Ordering;
@@ -18,7 +19,7 @@ struct SpiralIter<'a> {
     map: &'a Map,
     position: Point,
     side_length: Dimension,
-    direction: Point,
+    direction: Direction,
     step: Dimension,
     turns: usize,
     complete: bool,
@@ -30,7 +31,7 @@ impl<'a> SpiralIter<'a> {
             map,
             position: Point::xy(start.x, start.y),
             side_length: 1,
-            direction: Point::xy(0, 1), // Downwards
+            direction: Direction::Down,
             step: 0,
             turns: 0,
             complete: false,
@@ -49,7 +50,7 @@ impl<'a> Iterator for SpiralIter<'a> {
             // Are we ready to turn?
             if self.step == self.side_length {
                 // Rotate right
-                self.direction = Point::xy(-1 * self.direction.y, self.direction.x);
+                self.direction = self.direction.turned_right();
                 self.turns += 1;
                 self.step = 0;
                 // Every second turn, the length gets 1 unit longer
@@ -67,7 +68,11 @@ impl<'a> Iterator for SpiralIter<'a> {
             // Item to return is wherever we were at the start of this iteration
             let next = self.position;
             // Now update to the new position
-            self.position = self.position + self.direction;
+            self.position = self.direction.translate_point(
+                &self.position,
+                1,
+                CoordinateMapping::YIncreasesDownwards,
+            );
             self.step += 1;
 
             // Return this position from the iterator if its within bounds
