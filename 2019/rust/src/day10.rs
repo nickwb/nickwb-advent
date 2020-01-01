@@ -1,4 +1,4 @@
-use crate::direction::{CoordinateMapping, Direction};
+use crate::util::{CoordinateMapping, Direction};
 use num::integer::gcd;
 use rayon::prelude::*;
 use std::cmp::Ordering;
@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 type Dimension = i32;
-type Point = crate::point::Point<Dimension>;
+type Point = crate::util::Point<Dimension>;
 
 #[derive(Debug, PartialEq, Clone)]
 struct Map {

@@ -1,11 +1,11 @@
-use crate::direction::{CoordinateMapping, Direction};
 use crate::intcode::*;
+use crate::util::{CoordinateMapping, Direction};
 use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 
 type Coordinate = i32;
-type Point = crate::point::Point<Coordinate>;
+type Point = crate::util::Point<Coordinate>;
 
 #[derive(Debug, Clone, Copy)]
 enum Colour {

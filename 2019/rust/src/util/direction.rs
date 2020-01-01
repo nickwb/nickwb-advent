@@ -1,4 +1,4 @@
-use crate::point::Point;
+use super::Point;
 use std::ops::{Add, Sub};
 
 #[derive(Debug, PartialEq)]

@@ -1,10 +1,10 @@
-use crate::direction::{CoordinateMapping, Direction, Orientation};
+use crate::util::{CoordinateMapping, Direction, Orientation};
 use regex::Regex;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
 type Grid = i64;
-type Point = crate::point::Point<Grid>;
+type Point = crate::util::Point<Grid>;
 
 struct Intersection {
     point: Point,

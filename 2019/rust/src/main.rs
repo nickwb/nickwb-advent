@@ -1,6 +1,5 @@
-mod direction;
 mod intcode;
-mod point;
+mod util;
 
 mod day1;
 mod day10;
