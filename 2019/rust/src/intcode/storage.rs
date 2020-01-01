@@ -20,8 +20,10 @@ impl Storage for VecStorage {
     }
 }
 
+#[cfg(test)]
 pub type MutSliceStorage<'a> = &'a mut [MemoryCell];
 
+#[cfg(test)]
 impl<'a> Storage for MutSliceStorage<'a> {
     fn size(&self) -> MemoryPointer {
         self.len()
@@ -34,6 +36,7 @@ impl<'a> Storage for MutSliceStorage<'a> {
     }
 }
 
+#[cfg(test)]
 pub fn slice_storage<'a>(s: MutSliceStorage<'a>) -> MutSliceStorage<'a> {
     s
 }

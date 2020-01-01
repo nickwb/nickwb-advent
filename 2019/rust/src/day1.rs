@@ -19,7 +19,7 @@ fn input() -> Vec<f64> {
     util::read_int_array("inputs/day1.txt")
 }
 
-fn calculate() -> (f64, f64) {
+fn calculate_day_one() -> (f64, f64) {
     let input = input();
     let part_one: f64 = input.iter().copied().map(|i| get_fuel(i)).sum();
     let part_two: f64 = input.iter().copied().map(|i| get_total_fuel(i)).sum();
@@ -27,7 +27,7 @@ fn calculate() -> (f64, f64) {
 }
 
 pub fn run_day_one() {
-    let (part_one, part_two) = calculate();
+    let (part_one, part_two) = calculate_day_one();
     println!("Day 1, Part 1: {}", part_one);
     println!("Day 1, Part 2: {}", part_two);
 }
@@ -69,7 +69,7 @@ fn example_7() {
 
 #[test]
 fn actual_day_1() {
-    let (part_one, part_two) = calculate();
+    let (part_one, part_two) = calculate_day_one();
     assert_eq!(3412207f64, part_one);
     assert_eq!(5115436f64, part_two);
 }

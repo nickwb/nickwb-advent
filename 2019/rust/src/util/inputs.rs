@@ -15,3 +15,7 @@ pub fn read_int_array<T: FromStr>(path: &str) -> Vec<T> {
         })
         .collect()
 }
+
+pub fn read_file(path: &str) -> String {
+    std::fs::read_to_string(path).unwrap()
+}

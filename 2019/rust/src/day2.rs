@@ -1,26 +1,22 @@
 use crate::intcode::*;
+use crate::util;
 use rayon::prelude::*;
 
-const MY_INPUTS: [MemoryCell; 129] = [
-    1, 12, 2, 3, 1, 1, 2, 3, 1, 3, 4, 3, 1, 5, 0, 3, 2, 1, 10, 19, 1, 6, 19, 23, 1, 13, 23, 27, 1,
-    6, 27, 31, 1, 31, 10, 35, 1, 35, 6, 39, 1, 39, 13, 43, 2, 10, 43, 47, 1, 47, 6, 51, 2, 6, 51,
-    55, 1, 5, 55, 59, 2, 13, 59, 63, 2, 63, 9, 67, 1, 5, 67, 71, 2, 13, 71, 75, 1, 75, 5, 79, 1,
-    10, 79, 83, 2, 6, 83, 87, 2, 13, 87, 91, 1, 9, 91, 95, 1, 9, 95, 99, 2, 99, 9, 103, 1, 5, 103,
-    107, 2, 9, 107, 111, 1, 5, 111, 115, 1, 115, 2, 119, 1, 9, 119, 0, 99, 2, 0, 14, 0,
-];
+fn input() -> Vec<MemoryCell> {
+    util::read_int_array("inputs/day2.txt")
+}
 
-fn find_required_values() -> isize {
+fn find_required_values(input: Vec<MemoryCell>) -> isize {
     const TARGET_RESULT: MemoryCell = 19690720;
     let found = (0..=9999isize)
         .into_par_iter()
         .map(|x| {
             let i = x / 100;
             let j = x % 100;
-            let mut inputs = MY_INPUTS.clone();
-            let state = slice_storage(&mut inputs);
-            state[1] = i;
-            state[2] = j;
-            let result = run_basic_intcode_program(state, 0).unwrap();
+            let mut inputs = input.clone();
+            inputs[1] = i;
+            inputs[2] = j;
+            let result = run_basic_intcode_program(inputs, 0).unwrap();
             (x, result)
         })
         .find_any(|(_x, result)| *result == TARGET_RESULT)
@@ -29,10 +25,17 @@ fn find_required_values() -> isize {
     found.0
 }
 
+fn calculate_day_two() -> (isize, isize) {
+    let input = input();
+    let part_one = run_basic_intcode_program(input.clone(), 0).unwrap();
+    let part_two = find_required_values(input);
+    (part_one, part_two)
+}
+
 pub fn run_day_two() {
-    let part_one = run_basic_intcode_program(slice_storage(&mut MY_INPUTS.clone()), 0).unwrap();
+    let (part_one, part_two) = calculate_day_two();
     println!("Day 2, Part 1: {}", part_one);
-    println!("Day 2, Part 2: {}", find_required_values());
+    println!("Day 2, Part 2: {}", part_two);
 }
 
 #[test]
@@ -68,14 +71,8 @@ fn example_4() {
 }
 
 #[test]
-fn actual_part_1() {
-    assert_eq!(
-        3706713,
-        run_basic_intcode_program(slice_storage(&mut MY_INPUTS.clone()), 0).unwrap()
-    );
-}
-
-#[test]
-fn actual_part_2() {
-    assert_eq!(8609, find_required_values());
+fn actual_day_1() {
+    let (part_one, part_two) = calculate_day_two();
+    assert_eq!(3706713, part_one);
+    assert_eq!(8609, part_two);
 }
