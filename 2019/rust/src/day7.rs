@@ -1,26 +1,5 @@
 use crate::intcode::*;
-
-const MY_INPUTS: [MemoryCell; 511] = [
-    3, 8, 1001, 8, 10, 8, 105, 1, 0, 0, 21, 38, 59, 76, 89, 106, 187, 268, 349, 430, 99999, 3, 9,
-    1002, 9, 3, 9, 101, 2, 9, 9, 1002, 9, 4, 9, 4, 9, 99, 3, 9, 1001, 9, 5, 9, 1002, 9, 5, 9, 1001,
-    9, 2, 9, 1002, 9, 3, 9, 4, 9, 99, 3, 9, 1001, 9, 4, 9, 102, 4, 9, 9, 1001, 9, 3, 9, 4, 9, 99,
-    3, 9, 101, 4, 9, 9, 1002, 9, 5, 9, 4, 9, 99, 3, 9, 1002, 9, 3, 9, 101, 5, 9, 9, 1002, 9, 3, 9,
-    4, 9, 99, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9,
-    101, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4,
-    9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 99, 3, 9,
-    1002, 9, 2, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9,
-    4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 101,
-    2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 99, 3, 9, 1002, 9, 2, 9, 4,
-    9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 101, 2,
-    9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3,
-    9, 1001, 9, 1, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 99, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2,
-    9, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3, 9, 101, 2, 9, 9, 4, 9, 3,
-    9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 1002, 9, 2, 9, 4, 9, 3, 9, 101, 1, 9,
-    9, 4, 9, 3, 9, 101, 1, 9, 9, 4, 9, 99, 3, 9, 101, 2, 9, 9, 4, 9, 3, 9, 102, 2, 9, 9, 4, 9, 3,
-    9, 1002, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2,
-    9, 4, 9, 3, 9, 1001, 9, 1, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9, 1001, 9, 2, 9, 4, 9, 3, 9,
-    102, 2, 9, 9, 4, 9, 99,
-];
+use crate::util;
 
 fn part_one_try_phases(state: &VecStorage, phases: &[MemoryCell]) -> MemoryCell {
     phases.iter().fold(0 as MemoryCell, |o, p| {
@@ -93,12 +72,21 @@ fn part_two_find_max(state: &[MemoryCell]) -> MemoryCell {
         .unwrap()
 }
 
-pub fn run_day_seven() {
-    let result = part_one_find_max(&MY_INPUTS);
-    println!("Day 7, Part 1: {}", result);
+fn input() -> Vec<MemoryCell> {
+    util::read_int_array("inputs/day7.txt")
+}
 
-    let result = part_two_find_max(&MY_INPUTS);
-    println!("Day 7, Part 2: {}", result);
+fn calculate_day_seven() -> (MemoryCell, MemoryCell) {
+    let input = input();
+    let part_one = part_one_find_max(&input);
+    let part_two = part_two_find_max(&input);
+    (part_one, part_two)
+}
+
+pub fn run_day_seven() {
+    let (part_one, part_two) = calculate_day_seven();
+    println!("Day 7, Part 1: {}", part_one);
+    println!("Day 7, Part 2: {}", part_two);
 }
 
 fn get_permutations(values: &[MemoryCell]) -> Vec<[MemoryCell; 5]> {
@@ -189,11 +177,8 @@ fn example_5() {
 }
 
 #[test]
-fn actual_part_1() {
-    assert_eq!(199988, part_one_find_max(&MY_INPUTS));
-}
-
-#[test]
-fn actual_part_2() {
-    assert_eq!(17519904, part_two_find_max(&MY_INPUTS));
+fn actual_day_7() {
+    let (part_one, part_two) = calculate_day_seven();
+    assert_eq!(199988, part_one);
+    assert_eq!(17519904, part_two);
 }
