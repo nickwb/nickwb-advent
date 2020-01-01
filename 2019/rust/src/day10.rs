@@ -1,4 +1,4 @@
-use crate::util::{CoordinateMapping, Direction};
+use crate::util::{self, CoordinateMapping, Direction};
 use num::integer::gcd;
 use rayon::prelude::*;
 use std::cmp::Ordering;
@@ -224,42 +224,8 @@ fn get_destruction_order(map: &mut Map, point: Point) -> Vec<Point> {
 }
 
 fn input() -> Map {
-    let s = "
-    ..#..###....#####....###........#
-    .##.##...#.#.......#......##....#
-    #..#..##.#..###...##....#......##
-    ..####...#..##...####.#.......#.#
-    ...#.#.....##...#.####.#.###.#..#
-    #..#..##.#.#.####.#.###.#.##.....
-    #.##...##.....##.#......#.....##.
-    .#..##.##.#..#....#...#...#...##.
-    .#..#.....###.#..##.###.##.......
-    .##...#..#####.#.#......####.....
-    ..##.#.#.#.###..#...#.#..##.#....
-    .....#....#....##.####....#......
-    .#..##.#.........#..#......###..#
-    #.##....#.#..#.#....#.###...#....
-    .##...##..#.#.#...###..#.#.#..###
-    .#..##..##...##...#.#.#...#..#.#.
-    .#..#..##.##...###.##.#......#...
-    ...#.....###.....#....#..#....#..
-    .#...###..#......#.##.#...#.####.
-    ....#.##...##.#...#........#.#...
-    ..#.##....#..#.......##.##.....#.
-    .#.#....###.#.#.#.#.#............
-    #....####.##....#..###.##.#.#..#.
-    ......##....#.#.#...#...#..#.....
-    ...#.#..####.##.#.........###..##
-    .......#....#.##.......#.#.###...
-    ...#..#.#.........#...###......#.
-    .#.##.#.#.#.#........#.#.##..#...
-    .......#.##.#...........#..#.#...
-    .####....##..#..##.#.##.##..##...
-    .#.#..###.#..#...#....#.###.#..#.
-    ............#...#...#.......#.#..
-    .........###.#.....#..##..#.##...";
-
-    Map::from_string(s).unwrap()
+    let text = util::read_file("inputs/day10.txt");
+    Map::from_string(&text).unwrap()
 }
 
 fn part_one(map: &Map) -> (Point, usize) {
@@ -271,12 +237,17 @@ fn part_two(map: &mut Map, best_point: Point) -> Point {
     order[199]
 }
 
-pub fn run_day_ten() {
+fn calculate_day_ten() -> (Point, usize, Point) {
     let mut map = input();
-    let p1 = part_one(&map);
-    println!("Day 10, Part 1: {} at ({}, {})", p1.1, p1.0.x, p1.0.y);
-    let p2 = part_two(&mut map, p1.0);
-    println!("Day 10, Part 2: ({}, {})", p2.x, p2.y);
+    let (best, observed) = part_one(&map);
+    let two_hundred = part_two(&mut map, best);
+    (best, observed, two_hundred)
+}
+
+pub fn run_day_ten() {
+    let (best, observed, two_hundred) = calculate_day_ten();
+    println!("Day 10, Part 1: {} at ({}, {})", observed, best.x, best.y);
+    println!("Day 10, Part 2: ({}, {})", two_hundred.x, two_hundred.y);
 }
 
 #[test]
@@ -393,10 +364,8 @@ fn example_5() {
 
 #[test]
 fn actual_part_1_and_2() {
-    let mut map = input();
-    let best = part_one(&map);
-    assert_eq!((Point::xy(27, 19), 314), best);
-
-    let number_200 = part_two(&mut map, best.0);
-    assert_eq!(Point::xy(15, 13), number_200);
+    let (best, observed, two_hundred) = calculate_day_ten();
+    assert_eq!(Point::xy(27, 19), best);
+    assert_eq!(314, observed);
+    assert_eq!(Point::xy(15, 13), two_hundred);
 }
