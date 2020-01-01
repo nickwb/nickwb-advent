@@ -48,21 +48,38 @@ fn valids_between(start: i32, end: i32, enforce_doubles_only: bool) -> usize {
         .count()
 }
 
+fn calculate_day_four() -> (usize, usize) {
+    let start = 146810;
+    let end = 612564;
+    (
+        valids_between(start, end, false),
+        valids_between(start, end, true),
+    )
+}
+
 pub fn run_day_four() {
-    println!("Day 4, Part 1: {}", valids_between(146810, 612564, false));
-    println!("Day 4, Part 2: {}", valids_between(146810, 612564, true));
+    let (part_one, part_two) = calculate_day_four();
+    println!("Day 4, Part 1: {}", part_one);
+    println!("Day 4, Part 2: {}", part_two);
 }
 
 #[test]
-fn part_1_validity() {
+fn example_1() {
     assert_eq!(true, is_valid("111111", false));
     assert_eq!(false, is_valid("223450", false));
     assert_eq!(false, is_valid("123789", false));
 }
 
 #[test]
-fn part_2_validity() {
+fn example_2() {
     assert_eq!(true, is_valid("112233", true));
     assert_eq!(false, is_valid("123444", true));
     assert_eq!(true, is_valid("111122", true));
+}
+
+#[test]
+fn actual_day_3() {
+    let (part_one, part_two) = calculate_day_four();
+    assert_eq!(1748, part_one);
+    assert_eq!(1180, part_two);
 }

@@ -71,7 +71,7 @@ fn example_4() {
 }
 
 #[test]
-fn actual_day_1() {
+fn actual_day_2() {
     let (part_one, part_two) = calculate_day_two();
     assert_eq!(3706713, part_one);
     assert_eq!(8609, part_two);
