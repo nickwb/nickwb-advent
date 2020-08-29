@@ -9,16 +9,27 @@ struct Vector3 {
 
 const ZERO_VECTOR: Vector3 = Vector3 { x: 0, y: 0, z: 0 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct Moon {
     pub position: Vector3,
     pub velocity: Vector3,
 }
 
-fn calculate_part_one(mut moons: Vec<Moon>, total_steps: u64) -> i64 {
+fn calculate_part_one(moons: &mut Vec<Moon>, total_steps: u64) -> i64 {
+    simulate_motion(moons, total_steps);
+    moons.iter().map(calculate_energy).sum()
+}
+
+fn calculate_energy(moon: &Moon) -> i64 {
+    let pot = moon.position.x.abs() + moon.position.y.abs() + moon.position.z.abs();
+    let kin = moon.velocity.x.abs() + moon.velocity.y.abs() + moon.velocity.z.abs();
+    pot * kin
+}
+
+fn simulate_motion(moons: &mut Vec<Moon>, total_steps: u64) {
     let mut step: u64 = 0;
     while step < total_steps {
-        with_pairs(&mut moons, |a, b| {
+        with_pairs(moons, |a, b| {
             if a.position.x < b.position.x {
                 a.velocity.x += 1;
                 b.velocity.x -= 1;
@@ -52,8 +63,6 @@ fn calculate_part_one(mut moons: Vec<Moon>, total_steps: u64) -> i64 {
 
         step += 1;
     }
-
-    unimplemented!()
 }
 
 fn with_pairs<F: Fn(&mut T, &mut T) -> (), T>(list: &mut Vec<T>, f: F) {
@@ -101,7 +110,8 @@ fn parse_vector(text: &str) -> Option<Vector3> {
 }
 
 pub fn run_day_twelve() {
-    println!("TODO");
+    let mut moons = initial_moons(inputs());
+    println!("Day 12, Part 1: {}", calculate_part_one(&mut moons, 1000));
 }
 
 #[test]
@@ -125,4 +135,101 @@ fn test_parse() {
     );
     assert_eq!(&Vector3 { x: 4, y: -8, z: 8 }, parsed.get(2).unwrap());
     assert_eq!(&Vector3 { x: 3, y: 5, z: -1 }, parsed.get(3).unwrap());
+}
+
+#[test]
+fn example_1() {
+    let input = r"
+    <x=-1, y=0, z=2>
+    <x=2, y=-10, z=-7>
+    <x=4, y=-8, z=8>
+    <x=3, y=5, z=-1>
+    ";
+
+    let mut moons = initial_moons(parse_input(input));
+    let energy = calculate_part_one(&mut moons, 10);
+
+    let expected = vec![
+        Moon {
+            position: Vector3 { x: 2, y: 1, z: -3 },
+            velocity: Vector3 { x: -3, y: -2, z: 1 },
+        },
+        Moon {
+            position: Vector3 { x: 1, y: -8, z: 0 },
+            velocity: Vector3 { x: -1, y: 1, z: 3 },
+        },
+        Moon {
+            position: Vector3 { x: 3, y: -6, z: 1 },
+            velocity: Vector3 { x: 3, y: 2, z: -3 },
+        },
+        Moon {
+            position: Vector3 { x: 2, y: 0, z: 4 },
+            velocity: Vector3 { x: 1, y: -1, z: -1 },
+        },
+    ];
+
+    assert_eq!(moons, expected);
+    assert_eq!(energy, 179);
+}
+
+#[test]
+fn example_2() {
+    let input = r"
+    <x=-8, y=-10, z=0>
+    <x=5, y=5, z=10>
+    <x=2, y=-7, z=3>
+    <x=9, y=-8, z=-3>
+    ";
+
+    let mut moons = initial_moons(parse_input(input));
+    let energy = calculate_part_one(&mut moons, 100);
+
+    let expected = vec![
+        Moon {
+            position: Vector3 {
+                x: 8,
+                y: -12,
+                z: -9,
+            },
+            velocity: Vector3 { x: -7, y: 3, z: 0 },
+        },
+        Moon {
+            position: Vector3 {
+                x: 13,
+                y: 16,
+                z: -3,
+            },
+            velocity: Vector3 {
+                x: 3,
+                y: -11,
+                z: -5,
+            },
+        },
+        Moon {
+            position: Vector3 {
+                x: -29,
+                y: -11,
+                z: -1,
+            },
+            velocity: Vector3 { x: -3, y: 7, z: 4 },
+        },
+        Moon {
+            position: Vector3 {
+                x: 16,
+                y: -13,
+                z: 23,
+            },
+            velocity: Vector3 { x: 7, y: 1, z: 1 },
+        },
+    ];
+
+    assert_eq!(moons, expected);
+    assert_eq!(energy, 1940);
+}
+
+#[test]
+fn actual_part_1() {
+    let mut moons = initial_moons(inputs());
+    let energy = calculate_part_one(&mut moons, 1000);
+    assert_eq!(8287, energy);
 }
