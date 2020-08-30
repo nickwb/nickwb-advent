@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::{collections::HashSet, convert::TryInto};
 
 type BaseInt = i32;
 
@@ -52,6 +53,8 @@ struct MoonSet {
     pub moons: [Moon; 4],
 }
 
+type CrushedSet = [i16; 6 * 4];
+
 impl MoonSet {
     fn from_str(spec: &str) -> MoonSet {
         let vectors = spec.lines().filter_map(|l| parse_vector(l.trim()));
@@ -82,6 +85,38 @@ impl MoonSet {
             (a, b, c, d)
         }
     }
+
+    pub fn crush(&self) -> CrushedSet {
+        fn crush_value(x: BaseInt) -> i16 {
+            x.try_into().expect("It didn't fit in an i16")
+        }
+        [
+            crush_value(self.moons[0].position.x),
+            crush_value(self.moons[0].position.y),
+            crush_value(self.moons[0].position.z),
+            crush_value(self.moons[0].velocity.x),
+            crush_value(self.moons[0].velocity.y),
+            crush_value(self.moons[0].velocity.z),
+            crush_value(self.moons[1].position.x),
+            crush_value(self.moons[1].position.y),
+            crush_value(self.moons[1].position.z),
+            crush_value(self.moons[1].velocity.x),
+            crush_value(self.moons[1].velocity.y),
+            crush_value(self.moons[1].velocity.z),
+            crush_value(self.moons[2].position.x),
+            crush_value(self.moons[2].position.y),
+            crush_value(self.moons[2].position.z),
+            crush_value(self.moons[2].velocity.x),
+            crush_value(self.moons[2].velocity.y),
+            crush_value(self.moons[2].velocity.z),
+            crush_value(self.moons[3].position.x),
+            crush_value(self.moons[3].position.y),
+            crush_value(self.moons[3].position.z),
+            crush_value(self.moons[3].velocity.x),
+            crush_value(self.moons[3].velocity.y),
+            crush_value(self.moons[3].velocity.z),
+        ]
+    }
 }
 
 fn calculate_part_one(moons: &MoonSet, total_steps: u64) -> (MoonSet, BaseInt) {
@@ -92,7 +127,9 @@ fn calculate_part_one(moons: &MoonSet, total_steps: u64) -> (MoonSet, BaseInt) {
 }
 
 fn calculate_part_two(moons: &MoonSet) -> u64 {
-    unimplemented!();
+    let mut copy = moons.clone();
+    let mut seen: HashSet<CrushedSet> = HashSet::new();
+    simulate_motion(&mut copy, |_, moons| !seen.insert(moons.crush()))
 }
 
 fn calculate_energy(moon: &Moon) -> BaseInt {
@@ -101,7 +138,7 @@ fn calculate_energy(moon: &Moon) -> BaseInt {
     pot * kin
 }
 
-fn simulate_motion<F: Fn(u64, &MoonSet) -> bool>(moons: &mut MoonSet, stop_fn: F) {
+fn simulate_motion<F: FnMut(u64, &MoonSet) -> bool>(moons: &mut MoonSet, mut stop_fn: F) -> u64 {
     fn gravity(a: &mut Moon, b: &mut Moon) {
         let x = (b.position.x - a.position.x).signum();
         let y = (b.position.y - a.position.y).signum();
@@ -134,6 +171,8 @@ fn simulate_motion<F: Fn(u64, &MoonSet) -> bool>(moons: &mut MoonSet, stop_fn: F
 
         step += 1;
     }
+
+    step
 }
 
 fn inputs() -> MoonSet {
@@ -156,6 +195,7 @@ fn parse_vector(text: &str) -> Option<Vector3> {
 pub fn run_day_twelve() {
     let moons = inputs();
     println!("Day 12, Part 1: {}", calculate_part_one(&moons, 1000).1);
+    println!("Day 12, Part 2: {}", calculate_part_two(&moons));
 }
 
 #[test]
@@ -181,6 +221,9 @@ fn example_1() {
 
     assert_eq!(result.0, expected);
     assert_eq!(result.1, 179);
+
+    let part_two = calculate_part_two(&moons);
+    assert_eq!(2772, part_two);
 }
 
 #[test]
@@ -206,6 +249,9 @@ fn example_2() {
 
     assert_eq!(result.0, expected);
     assert_eq!(result.1, 1940);
+
+    // let part_two = calculate_part_two(&moons);
+    // assert_eq!(4686774924, part_two);
 }
 
 #[test]
