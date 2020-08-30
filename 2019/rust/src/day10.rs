@@ -176,7 +176,7 @@ fn find_best_point(map: &Map) -> (Point, usize) {
         .unwrap()
 }
 
-const TWO_PI: f64 = (2.0 * std::f64::consts::PI);
+const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
 const PI_ON_TWO: f64 = std::f64::consts::FRAC_PI_2;
 
 fn normalise_angle(theta: f64) -> f64 {
