@@ -91,13 +91,7 @@ impl<'a> OutputSink for RobotOutput<'a> {
 }
 
 fn inputs() -> Vec<MemoryCell> {
-    std::fs::read_to_string("inputs/day11.txt")
-        .unwrap()
-        .split(',')
-        .map(|v| v.trim())
-        .filter(|v| !v.is_empty())
-        .map(|v| v.parse::<MemoryCell>().unwrap())
-        .collect()
+    crate::util::read_int_array("inputs/day11.txt")
 }
 
 fn run_robot_until_completion(start_color: Colour) -> PaintingRobot {
