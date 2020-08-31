@@ -1,4 +1,6 @@
 use regex::Regex;
+
+#[cfg(test)]
 use std::{collections::HashSet, convert::TryInto};
 
 type BaseInt = i32;
@@ -53,6 +55,7 @@ struct MoonSet {
     pub moons: [Moon; 4],
 }
 
+#[cfg(test)]
 type CrushedSet = [i16; 6 * 4];
 
 impl MoonSet {
@@ -86,6 +89,7 @@ impl MoonSet {
         }
     }
 
+    #[cfg(test)]
     pub fn crush(&self) -> CrushedSet {
         fn crush_value(x: BaseInt) -> i16 {
             x.try_into().expect("It didn't fit in an i16")
@@ -126,6 +130,7 @@ fn calculate_part_one(moons: &MoonSet, total_steps: u64) -> (MoonSet, BaseInt) {
     (copy, energy)
 }
 
+#[cfg(test)]
 fn calculate_part_two(moons: &MoonSet) -> u64 {
     let mut copy = moons.clone();
     let mut seen: HashSet<CrushedSet> = HashSet::new();
@@ -195,7 +200,7 @@ fn parse_vector(text: &str) -> Option<Vector3> {
 pub fn run_day_twelve() {
     let moons = inputs();
     println!("Day 12, Part 1: {}", calculate_part_one(&moons, 1000).1);
-    println!("Day 12, Part 2: {}", calculate_part_two(&moons));
+    //println!("Day 12, Part 2: {}", calculate_part_two(&moons));
 }
 
 #[test]
