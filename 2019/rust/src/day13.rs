@@ -65,7 +65,7 @@ fn inputs() -> Vec<MemoryCell> {
     crate::util::read_int_array("inputs/day13.txt")
 }
 
-fn calculate_part_1() -> usize {
+fn calculate_part_one() -> usize {
     let input = NoInput {};
     let output = ScreenBuffer::new();
     let mut computer = Computer::new(inputs(), input, output);
@@ -81,5 +81,11 @@ fn calculate_part_1() -> usize {
 }
 
 pub fn run_day_thirteen() {
-    println!("Day 13, Part 1: {}", calculate_part_1());
+    println!("Day 13, Part 1: {}", calculate_part_one());
+}
+
+#[test]
+fn actual_part_1() {
+    let result = calculate_part_one();
+    assert_eq!(341, result);
 }

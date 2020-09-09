@@ -1,8 +1,9 @@
 [package]
-name = "nickwb-advent"
+name = "nickwb_advent"
 version = "0.1.0"
 authors = ["Nick Young <nick.young@stacktracehq.com>"]
 edition = "2018"
+default-run = "runall"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
