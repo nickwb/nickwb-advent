@@ -99,9 +99,41 @@ impl InputInterpretation {
             result.reactions.push(reaction);
         }
 
+        result.convert_to_lut();
         result.normalise_costs();
 
         Some(result)
+    }
+
+    fn convert_to_lut(&mut self) {
+        let mut result = Vec::new();
+
+        for i in 0..self.compount_count {
+            let found = self.reactions.iter().enumerate().find_map(|(j, reaction)| {
+                if reaction.output.compound_idx == i {
+                    Some(j)
+                } else {
+                    None
+                }
+            });
+
+            let reaction = match (i, found) {
+                (_, Some(idx)) => self.reactions.swap_remove(idx),
+                (ORE_IDX, None) => Reaction {
+                    idx: ORE_IDX,
+                    output: Output {
+                        compound_idx: ORE_IDX,
+                        quantity: 1,
+                    },
+                    cost: Vec::new(),
+                },
+                (j, None) => panic!("Could not find reaction for output: {}", j),
+            };
+
+            result.push(reaction);
+        }
+
+        self.reactions = result;
     }
 
     fn normalise_costs(&mut self) {
@@ -276,19 +308,13 @@ fn acquire_fuel(input: &InputInterpretation, initial: SearchCandidate) -> Search
             DemandType::NeedsOutput(d) => d,
             DemandType::NoFurtherDemands => return prior,
         };
-        let compound = demand.compound_idx;
-
-        // TODO: Build an index lookup for the reactions
-        for r in input.reactions.iter() {
-            if r.output.compound_idx == compound {
-                match prior.apply_reaction(r) {
-                    ApplyResult::AllDemandsMet(found_result) => {
-                        return found_result;
-                    }
-                    ApplyResult::NewCandidate(next) => {
-                        candidates.push_back(next);
-                    }
-                }
+        let reaction = &input.reactions[demand.compound_idx];
+        match prior.apply_reaction(reaction) {
+            ApplyResult::AllDemandsMet(found_result) => {
+                return found_result;
+            }
+            ApplyResult::NewCandidate(next) => {
+                candidates.push_back(next);
             }
         }
     }
