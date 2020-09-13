@@ -1,9 +1,11 @@
+use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
 
 use regex::Regex;
 
 const ORE_IDX: usize = 0;
 const FUEL_IDX: usize = 1;
+const PART_TWO_ORE: usize = 1000000000000;
 
 #[derive(Debug)]
 struct InputInterpretation {
@@ -124,7 +126,7 @@ fn parse_quantity_and_compound(text: &str) -> Option<(usize, String)> {
 struct SearchCandidate {
     demand_queue: VecDeque<Output>,
     overflow: Vec<usize>,
-    total_ore: usize,
+    total_cost: Vec<usize>,
 }
 
 enum DemandType<'a> {
@@ -144,13 +146,14 @@ impl SearchCandidate {
             compound_idx: FUEL_IDX,
             quantity: 1,
         });
-        let mut overflow = Vec::with_capacity(input.compount_count);
-        overflow.resize(input.compount_count, 0);
+
+        let mut zero_resources = Vec::with_capacity(input.compount_count);
+        zero_resources.resize(input.compount_count, 0);
 
         SearchCandidate {
             demand_queue,
-            overflow,
-            total_ore: 0,
+            overflow: zero_resources.clone(),
+            total_cost: zero_resources,
         }
     }
 
@@ -159,6 +162,10 @@ impl SearchCandidate {
             Some(d) => DemandType::NeedsOutput(d),
             None => DemandType::NoFurtherDemands,
         }
+    }
+
+    fn ore_cost(&self) -> usize {
+        self.total_cost[ORE_IDX]
     }
 
     fn update_next_demand(&mut self, new_value: Output) {
@@ -225,6 +232,7 @@ impl SearchCandidate {
 
         let mut new_candidate = self.clone();
 
+        // TODO: Apply the reaction multiple times where the demand is a multiple of the output
         if reaction.output.quantity >= demand.quantity {
             new_candidate.demand_queue.pop_front();
             new_candidate.overflow[compound] += reaction.output.quantity - demand.quantity;
@@ -234,9 +242,11 @@ impl SearchCandidate {
 
         for (i, &cost) in reaction.cost.iter().enumerate() {
             if cost > 0 {
+                new_candidate.total_cost[i] += cost;
                 match i {
-                    ORE_IDX => new_candidate.total_ore += cost,
+                    ORE_IDX => (),
                     FUEL_IDX => panic!("This looks recursive..."),
+                    // TODO: Update the existing demands in the queue before pushing a new item
                     _ => new_candidate.demand_queue.push_back(Output {
                         compound_idx: i,
                         quantity: cost,
@@ -253,25 +263,27 @@ impl SearchCandidate {
     }
 }
 
-fn find_min_ore(input: &InputInterpretation) -> usize {
+fn acquire_fuel(input: &InputInterpretation, initial: SearchCandidate) -> SearchCandidate {
     let mut candidates: VecDeque<SearchCandidate> = VecDeque::new();
-    candidates.push_back(SearchCandidate::initial(input));
+    candidates.push_back(initial);
 
+    // TODO: Drop the queue, and mutate the single search candidate
     while !candidates.is_empty() {
         let mut prior = candidates.pop_front().unwrap();
         prior.consume_overflow();
 
         let demand = match prior.get_next_demand() {
             DemandType::NeedsOutput(d) => d,
-            DemandType::NoFurtherDemands => return prior.total_ore,
+            DemandType::NoFurtherDemands => return prior,
         };
         let compound = demand.compound_idx;
 
+        // TODO: Build an index lookup for the reactions
         for r in input.reactions.iter() {
             if r.output.compound_idx == compound {
                 match prior.apply_reaction(r) {
                     ApplyResult::AllDemandsMet(found_result) => {
-                        return found_result.total_ore;
+                        return found_result;
                     }
                     ApplyResult::NewCandidate(next) => {
                         candidates.push_back(next);
@@ -284,6 +296,124 @@ fn find_min_ore(input: &InputInterpretation) -> usize {
     panic!("Reached end of candidates without forming fuel");
 }
 
+fn calculate_part_1(input: &InputInterpretation) -> usize {
+    let initial = SearchCandidate::initial(input);
+    let result = acquire_fuel(input, initial);
+    result.ore_cost()
+}
+
+#[derive(Clone)]
+struct FuelStep {
+    idx: usize,
+    ore: usize,
+    cumulative_ore: usize,
+    overflow: Vec<usize>,
+}
+
+fn calculate_part_2_from_cycle(step_list: Vec<FuelStep>, begin: usize, end: usize) -> usize {
+    #[derive(Debug)]
+    struct CycleInfo {
+        prelude_ore: usize,
+        prelude_fuel: usize,
+        cycle_ore: usize,
+        cycle_fuel: usize,
+    }
+
+    let zero = CycleInfo {
+        prelude_ore: 0,
+        prelude_fuel: 0,
+        cycle_ore: 0,
+        cycle_fuel: 0,
+    };
+
+    let info = step_list.iter().fold(zero, |mut info, step| {
+        let in_cycle = step.idx >= begin && step.idx <= end;
+        if in_cycle {
+            info.cycle_ore += step.ore;
+            info.cycle_fuel += 1;
+        } else {
+            info.prelude_ore += step.ore;
+            info.prelude_fuel += 1;
+        }
+
+        info
+    });
+
+    println!("Cycle Info: {:?}", info);
+
+    let mut remaining_ore = PART_TWO_ORE;
+    let mut fuel = 0;
+
+    remaining_ore -= info.prelude_ore;
+    fuel += info.prelude_fuel;
+
+    let full_cycles = remaining_ore / info.cycle_ore;
+    remaining_ore -= full_cycles * info.cycle_ore;
+    fuel += full_cycles * info.cycle_fuel;
+
+    for step in step_list.iter() {
+        let in_cycle = step.idx >= begin && step.idx <= end;
+        if !in_cycle {
+            continue;
+        }
+
+        if remaining_ore > step.ore {
+            remaining_ore -= step.ore;
+            fuel += 1;
+        } else {
+            break;
+        }
+    }
+
+    fuel
+}
+
+fn calculate_part_2(input: &InputInterpretation) -> usize {
+    let zero_overflow = SearchCandidate::initial(input).overflow;
+
+    let mut ore = 0;
+    let mut fuel = 0;
+    let mut carried_overflow = zero_overflow.clone();
+
+    let mut step_list: Vec<FuelStep> = Vec::new();
+
+    loop {
+        let mut next_search = SearchCandidate::initial(input);
+        next_search.overflow = carried_overflow.clone();
+
+        let result = acquire_fuel(input, next_search);
+
+        if ore + result.ore_cost() <= PART_TWO_ORE {
+            ore += result.ore_cost();
+            fuel += 1;
+            carried_overflow = result.overflow.clone();
+
+            let step = FuelStep {
+                idx: fuel,
+                ore: result.ore_cost(),
+                cumulative_ore: ore,
+                overflow: result.overflow,
+            };
+
+            let previous = {
+                let found = step_list
+                    .par_iter()
+                    .find_any(|x| x.overflow == step.overflow);
+                found.cloned()
+            };
+
+            if let Some(p) = previous {
+                println!("Cycle at index: {}", step.idx);
+                return calculate_part_2_from_cycle(step_list, p.idx, step.idx - 1);
+            } else {
+                step_list.push(step);
+            }
+        } else {
+            return fuel;
+        }
+    }
+}
+
 fn inputs() -> InputInterpretation {
     let text = crate::util::read_file("inputs/day14.txt");
     InputInterpretation::parse_input(&text).unwrap()
@@ -291,7 +421,8 @@ fn inputs() -> InputInterpretation {
 
 pub fn run_day_fourteen() {
     let input = inputs();
-    println!("Day 14, Part 1: {}", find_min_ore(&input));
+    println!("Day 14, Part 1: {}", calculate_part_1(&input));
+    println!("Day 14, Part 2: {}", calculate_part_2(&input));
 }
 
 #[test]
@@ -306,7 +437,7 @@ fn example_1() {
     ";
 
     let input = InputInterpretation::parse_input(text).unwrap();
-    assert_eq!(31, find_min_ore(&input));
+    assert_eq!(31, calculate_part_1(&input));
 }
 
 #[test]
@@ -322,7 +453,7 @@ fn example_2() {
     ";
 
     let input = InputInterpretation::parse_input(text).unwrap();
-    assert_eq!(165, find_min_ore(&input));
+    assert_eq!(165, calculate_part_1(&input));
 }
 
 #[test]
@@ -340,7 +471,8 @@ fn example_3() {
     ";
 
     let input = InputInterpretation::parse_input(text).unwrap();
-    assert_eq!(13312, find_min_ore(&input));
+    assert_eq!(13312, calculate_part_1(&input));
+    assert_eq!(82892753, calculate_part_2(&input));
 }
 
 #[test]
@@ -361,7 +493,8 @@ fn example_4() {
     ";
 
     let input = InputInterpretation::parse_input(text).unwrap();
-    assert_eq!(180697, find_min_ore(&input));
+    assert_eq!(180697, calculate_part_1(&input));
+    assert_eq!(5586022, calculate_part_2(&input));
 }
 
 #[test]
@@ -387,11 +520,12 @@ fn example_5() {
     ";
 
     let input = InputInterpretation::parse_input(text).unwrap();
-    assert_eq!(2210736, find_min_ore(&input));
+    assert_eq!(2210736, calculate_part_1(&input));
+    assert_eq!(460664, calculate_part_2(&input));
 }
 
 #[test]
 fn actual_part_1() {
     let input = inputs();
-    assert_eq!(431448, find_min_ore(&input));
+    assert_eq!(431448, calculate_part_1(&input));
 }
