@@ -382,16 +382,10 @@ impl CycleSearchState {
         };
 
         if let Some(p) = previous {
-            println!("Cycle at index: {}", step.idx);
             CycleSearchResult::ResultFound(self.extrapolate(p.idx, step.idx - 1))
         } else {
             if step.idx > LARGEST_CYCLE {
-                println!("Abandoning cycle search.");
                 return CycleSearchResult::AbandonSearch;
-            }
-
-            if step.idx % 1000 == 0 {
-                println!("Still searching for cycle: {}", step.idx);
             }
 
             self.steps.push(step);
@@ -428,8 +422,6 @@ impl CycleSearchState {
 
             info
         });
-
-        //println!("Cycle Info: {:?}", info);
 
         let mut remaining_ore = PART_TWO_ORE;
         let mut fuel = 0;
@@ -636,4 +628,11 @@ fn example_5() {
 fn actual_part_1() {
     let input = inputs();
     assert_eq!(431448, calculate_part_1(&input));
+}
+
+#[test]
+#[cfg(slow_problems)]
+fn actual_part_2() {
+    let input = inputs();
+    assert_eq!(3279311, calculate_part_2(&input));
 }
