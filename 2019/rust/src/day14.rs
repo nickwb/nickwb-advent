@@ -155,7 +155,7 @@ fn parse_quantity_and_compound(text: &str) -> Option<(usize, String)> {
 }
 
 #[derive(Clone)]
-struct SearchCandidate {
+struct SearchState {
     demand_queue: VecDeque<Output>,
     overflow: Vec<usize>,
     total_cost: Vec<usize>,
@@ -167,12 +167,12 @@ enum DemandType<'a> {
 }
 
 enum ApplyResult {
-    NewCandidate(SearchCandidate),
-    AllDemandsMet(SearchCandidate),
+    ContinueSearching,
+    AllDemandsMet,
 }
 
-impl SearchCandidate {
-    fn initial(input: &InputInterpretation) -> SearchCandidate {
+impl SearchState {
+    fn initial(input: &InputInterpretation) -> SearchState {
         let mut demand_queue = VecDeque::with_capacity(input.compount_count);
         demand_queue.push_back(Output {
             compound_idx: FUEL_IDX,
@@ -182,7 +182,7 @@ impl SearchCandidate {
         let mut zero_resources = Vec::with_capacity(input.compount_count);
         zero_resources.resize(input.compount_count, 0);
 
-        SearchCandidate {
+        SearchState {
             demand_queue,
             overflow: zero_resources.clone(),
             total_cost: zero_resources,
@@ -265,7 +265,7 @@ impl SearchCandidate {
         }
     }
 
-    fn apply_reaction(&self, reaction: &Reaction) -> ApplyResult {
+    fn apply_reaction(&mut self, reaction: &Reaction) -> ApplyResult {
         let demand = match self.get_next_demand() {
             DemandType::NeedsOutput(d) => d,
             DemandType::NoFurtherDemands => panic!("Expected an unmet demand"),
@@ -277,67 +277,63 @@ impl SearchCandidate {
             panic!("Forming the wrong compound.");
         }
 
-        let mut new_candidate = self.clone();
-
         // Divide demand.quantity by reaction.output.quantity, rounding up
         let multiple = (demand.quantity + reaction.output.quantity - 1) / reaction.output.quantity;
         let output_quantity = reaction.output.quantity * multiple;
 
-        if output_quantity >= demand.quantity {
-            new_candidate.demand_queue.pop_front();
-            new_candidate.overflow[compound] += output_quantity - demand.quantity;
-        } else {
+        if output_quantity < demand.quantity {
             panic!("Expected to meet demand.");
         }
 
+        drop(demand);
+        self.overflow[compound] += output_quantity - demand.quantity;
+        self.demand_queue.pop_front();
+
         for (i, &cost) in reaction.cost.iter().enumerate() {
             if cost > 0 {
-                new_candidate.total_cost[i] += cost * multiple;
+                self.total_cost[i] += cost * multiple;
                 match i {
                     ORE_IDX => (),
                     FUEL_IDX => panic!("This looks recursive..."),
-                    _ => new_candidate.add_demand(i, cost * multiple),
+                    _ => self.add_demand(i, cost * multiple),
                 }
             }
         }
 
-        if new_candidate.demand_queue.is_empty() {
-            ApplyResult::AllDemandsMet(new_candidate)
+        if self.demand_queue.is_empty() {
+            ApplyResult::AllDemandsMet
         } else {
-            ApplyResult::NewCandidate(new_candidate)
+            ApplyResult::ContinueSearching
         }
     }
 }
 
-fn acquire_fuel(input: &InputInterpretation, initial: SearchCandidate) -> SearchCandidate {
-    let mut candidates: VecDeque<SearchCandidate> = VecDeque::new();
-    candidates.push_back(initial);
+fn acquire_fuel(input: &InputInterpretation, initial: SearchState) -> SearchState {
+    let mut state = initial;
 
-    // TODO: Drop the queue, and mutate the single search candidate
-    while !candidates.is_empty() {
-        let mut prior = candidates.pop_front().unwrap();
-        prior.consume_overflow();
+    loop {
+        state.consume_overflow();
 
-        let demand = match prior.get_next_demand() {
+        let demand = match state.get_next_demand() {
             DemandType::NeedsOutput(d) => d,
-            DemandType::NoFurtherDemands => return prior,
+            DemandType::NoFurtherDemands => return state,
         };
+
         let reaction = &input.reactions[demand.compound_idx];
-        match prior.apply_reaction(reaction) {
-            ApplyResult::AllDemandsMet(found_result) => {
-                return found_result;
+
+        match state.apply_reaction(reaction) {
+            ApplyResult::AllDemandsMet => {
+                return state;
             }
-            ApplyResult::NewCandidate(next) => {
-                candidates.push_back(next);
+            ApplyResult::ContinueSearching => {
+                continue;
             }
         }
     }
-
-    panic!("Reached end of candidates without forming fuel");
 }
 
 fn calculate_part_1(input: &InputInterpretation) -> usize {
-    let initial = SearchCandidate::initial(input);
+    let initial = SearchState::initial(input);
     let result = acquire_fuel(input, initial);
     result.ore_cost()
 }
@@ -409,7 +405,7 @@ fn calculate_part_2_from_cycle(step_list: Vec<FuelStep>, begin: usize, end: usiz
 }
 
 fn calculate_part_2(input: &InputInterpretation) -> usize {
-    let zero_overflow = SearchCandidate::initial(input).overflow;
+    let zero_overflow = SearchState::initial(input).overflow;
 
     let mut ore = 0;
     let mut fuel = 0;
@@ -418,21 +414,24 @@ fn calculate_part_2(input: &InputInterpretation) -> usize {
     let mut step_list: Vec<FuelStep> = Vec::new();
 
     loop {
-        let mut next_search = SearchCandidate::initial(input);
-        next_search.overflow = carried_overflow.clone();
+        let mut next_search = SearchState::initial(input);
+        std::mem::swap(&mut next_search.overflow, &mut carried_overflow);
 
-        let result = acquire_fuel(input, next_search);
+        let mut result = acquire_fuel(input, next_search);
+        let step_ore_cost = result.ore_cost();
 
-        if ore + result.ore_cost() <= PART_TWO_ORE {
-            ore += result.ore_cost();
+        if ore + step_ore_cost <= PART_TWO_ORE {
+            ore += step_ore_cost;
             fuel += 1;
-            carried_overflow = result.overflow.clone();
+
+            std::mem::swap(&mut carried_overflow, &mut result.overflow);
+            drop(result);
 
             let step = FuelStep {
                 idx: fuel,
-                ore: result.ore_cost(),
+                ore: step_ore_cost,
                 cumulative_ore: ore,
-                overflow: result.overflow,
+                overflow: carried_overflow.clone(),
             };
 
             let previous = {
@@ -512,7 +511,7 @@ fn example_3() {
 
     let input = InputInterpretation::parse_input(text).unwrap();
     assert_eq!(13312, calculate_part_1(&input));
-    //assert_eq!(82892753, calculate_part_2(&input));
+    assert_eq!(82892753, calculate_part_2(&input));
 }
 
 #[test]
@@ -534,7 +533,7 @@ fn example_4() {
 
     let input = InputInterpretation::parse_input(text).unwrap();
     assert_eq!(180697, calculate_part_1(&input));
-    //assert_eq!(5586022, calculate_part_2(&input));
+    assert_eq!(5586022, calculate_part_2(&input));
 }
 
 #[test]
@@ -561,7 +560,9 @@ fn example_5() {
 
     let input = InputInterpretation::parse_input(text).unwrap();
     assert_eq!(2210736, calculate_part_1(&input));
-    //assert_eq!(460664, calculate_part_2(&input));
+
+    #[cfg(slow_problems)]
+    assert_eq!(460664, calculate_part_2(&input));
 }
 
 #[test]
