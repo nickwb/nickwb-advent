@@ -250,6 +250,21 @@ impl SearchCandidate {
         }
     }
 
+    fn add_demand(&mut self, compound: usize, quantity: usize) {
+        let existing = self
+            .demand_queue
+            .iter_mut()
+            .find(|d| d.compound_idx == compound);
+
+        match existing {
+            Some(e) => e.quantity += quantity,
+            None => self.demand_queue.push_back(Output {
+                compound_idx: compound,
+                quantity: quantity,
+            }),
+        }
+    }
+
     fn apply_reaction(&self, reaction: &Reaction) -> ApplyResult {
         let demand = match self.get_next_demand() {
             DemandType::NeedsOutput(d) => d,
@@ -268,11 +283,6 @@ impl SearchCandidate {
         let multiple = (demand.quantity + reaction.output.quantity - 1) / reaction.output.quantity;
         let output_quantity = reaction.output.quantity * multiple;
 
-        // println!(
-        //     "Generating {} multiples of {}. Producing {} to meet demand of {}.",
-        //     multiple, compound, output_quantity, demand.quantity
-        // );
-
         if output_quantity >= demand.quantity {
             new_candidate.demand_queue.pop_front();
             new_candidate.overflow[compound] += output_quantity - demand.quantity;
@@ -286,11 +296,7 @@ impl SearchCandidate {
                 match i {
                     ORE_IDX => (),
                     FUEL_IDX => panic!("This looks recursive..."),
-                    // TODO: Update the existing demands in the queue before pushing a new item
-                    _ => new_candidate.demand_queue.push_back(Output {
-                        compound_idx: i,
-                        quantity: cost * multiple,
-                    }),
+                    _ => new_candidate.add_demand(i, cost * multiple),
                 }
             }
         }
