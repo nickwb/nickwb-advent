@@ -1,11 +1,9 @@
 use regex::Regex;
-use std::{
-    collections::{HashMap, VecDeque},
-    convert::TryInto,
-};
+use std::collections::{HashMap, VecDeque};
 
 const ORE_IDX: usize = 0;
 const FUEL_IDX: usize = 1;
+const PART_TWO_ORE: usize = 1_000_000_000_000;
 
 #[derive(Debug)]
 struct InputInterpretation {
@@ -105,6 +103,9 @@ impl InputInterpretation {
         Some(result)
     }
 
+    // Update the reactions Vec so that it can behave like a lookup table.
+    // In this configuration, reactions[x] will always produce an output
+    // of compound type x.
     fn convert_to_lut(&mut self) {
         let mut result = Vec::new();
 
@@ -119,6 +120,10 @@ impl InputInterpretation {
 
             let reaction = match (i, found) {
                 (_, Some(idx)) => self.reactions.swap_remove(idx),
+
+                // We're never going to look this up, but let's keep rust
+                // happy by guaranteeing that all elements of the reaction
+                // Vec are a valid instance of the Reaction struct.
                 (ORE_IDX, None) => Reaction {
                     idx: ORE_IDX,
                     output: Output {
@@ -127,6 +132,7 @@ impl InputInterpretation {
                     },
                     cost: Vec::new(),
                 },
+
                 (j, None) => panic!("Could not find reaction for output: {}", j),
             };
 
@@ -285,7 +291,10 @@ impl SearchState {
             panic!("Expected to meet demand.");
         }
 
+        // Demand borrows immutably from self, but we need to mutate ourselves
+        // in the next step.
         drop(demand);
+
         self.overflow[compound] += output_quantity - demand.quantity;
         self.demand_queue.pop_front();
 
@@ -338,22 +347,21 @@ fn calculate_part_1(input: &InputInterpretation) -> usize {
     result.ore_cost()
 }
 
+// This algorithm might not be correct for all possible inputs.
+//
+// It works by calculating the "amortised cost" of a single unit of fuel, as a
+// fractional amount of ore. It's amortised because we assume that all
+// over-production of a compound is re-distributed in to future units of fuel
+// with perfect efficiency.
+//
+// With the amortised cost calculated, we can divide the trillion ore through
+// it, and then round down to the nearest integer.
 fn calculate_part_2(input: &InputInterpretation) -> usize {
     if false {
         return integer_part_two::calculate_part_2(input);
     }
 
-    fn usize_to_f64(x: usize) -> f64 {
-        let a: i32 = x.try_into().unwrap();
-        let b: f64 = a.try_into().unwrap();
-        b
-    }
-
-    fn f64_to_usize(x: f64) -> usize {
-        unsafe { x.to_int_unchecked() }
-    }
-
-    fn get_cost_recursive(
+    fn get_amortised_cost_recursive(
         input: &InputInterpretation,
         memo: &mut HashMap<usize, f64>,
         compound: usize,
@@ -373,15 +381,16 @@ fn calculate_part_2(input: &InputInterpretation) -> usize {
             .enumerate()
             .map(|(idx, &cost)| {
                 if cost > 0 {
-                    get_cost_recursive(input, memo, idx) * usize_to_f64(cost)
+                    get_amortised_cost_recursive(input, memo, idx) * (cost as f64)
                 } else {
                     0f64
                 }
             })
             .sum();
 
-        let quantity_f: f64 = usize_to_f64(recipe.output.quantity);
-        let cost = cost / quantity_f;
+        // Amortise this cost by pretending we can consume fractional amounts
+        // of ore, and that all recipies produce exactly one unit of compound.
+        let cost = cost / (recipe.output.quantity as f64);
 
         memo.insert(compound, cost);
         cost
@@ -389,10 +398,10 @@ fn calculate_part_2(input: &InputInterpretation) -> usize {
 
     let mut memo: HashMap<usize, f64> = HashMap::new();
 
-    let per_fuel = get_cost_recursive(input, &mut memo, FUEL_IDX);
-    let fuels = 1_000_000_000_000f64 / per_fuel;
+    let per_fuel = get_amortised_cost_recursive(input, &mut memo, FUEL_IDX);
+    let fuels = (PART_TWO_ORE as f64) / per_fuel;
 
-    f64_to_usize(fuels)
+    fuels as usize
 }
 
 fn inputs() -> InputInterpretation {
@@ -521,8 +530,6 @@ mod integer_part_two {
     use super::*;
     use rayon::prelude::*;
     use std::collections::HashSet;
-
-    const PART_TWO_ORE: usize = 1000000000000;
 
     #[derive(Clone)]
     struct FuelStep {
