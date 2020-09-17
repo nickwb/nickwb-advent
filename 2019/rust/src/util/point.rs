@@ -7,7 +7,7 @@ pub struct Point<T> {
 }
 
 impl<T> Point<T> {
-    pub fn xy(x: T, y: T) -> Point<T> {
+    pub const fn xy(x: T, y: T) -> Point<T> {
         Point { x, y }
     }
 }

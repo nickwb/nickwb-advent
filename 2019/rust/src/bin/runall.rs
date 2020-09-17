@@ -15,4 +15,5 @@ fn main() {
     day12::run_day_twelve();
     day13::run_day_thirteen();
     day14::run_day_fourteen();
+    day15::run_day_fifteen();
 }
