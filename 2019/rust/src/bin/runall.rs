@@ -1,4 +1,4 @@
-use nickwb_advent::*;
+use nickwb_advent_2019::*;
 
 fn main() {
     day1::run_day_one();

@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use nickwb_advent::day13::GameState;
+use nickwb_advent_2019::day13::GameState;
 
 fn main() {
     let mut state = GameState::new();
