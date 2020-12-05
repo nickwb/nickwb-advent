@@ -76,4 +76,11 @@ mod tests {
         assert_eq!(514579, calculate_part_1(&input));
         assert_eq!(241861950, calculate_part_2(&input));
     }
+
+    #[test]
+    fn actual_inputs() {
+        let inputs = inputs();
+        assert_eq!(326211, calculate_part_1(&inputs));
+        assert_eq!(131347190, calculate_part_2(&inputs));
+    }
 }
