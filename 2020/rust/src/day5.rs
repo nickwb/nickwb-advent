@@ -10,38 +10,36 @@ lazy_static! {
     static ref SEAT_PATTERN: Regex = Regex::new(r"^([FB]+)([LR]+)$").unwrap();
 }
 
-fn parse_seat_number(text: &str) -> Option<(u8, u8, u16)> {
+fn parse_seat_number(text: &str) -> Option<u16> {
     let captures = SEAT_PATTERN.captures(text)?;
-    let row: u8 = captures
+    let row: u16 = captures
         .get(1)?
         .as_str()
         .chars()
-        .fold(0u8, |num, c| match c {
+        .fold(0u16, |num, c| match c {
             'F' => num << 1,
             'B' => (num << 1) + 1,
-            _ => panic!("Invalid binary digit in row"),
+            _ => unreachable!("Regex"),
         });
 
-    let col: u8 = captures
+    let col: u16 = captures
         .get(2)?
         .as_str()
         .chars()
-        .fold(0u8, |num, c| match c {
+        .fold(0u16, |num, c| match c {
             'L' => num << 1,
             'R' => (num << 1) + 1,
-            _ => panic!("Invalid binary digit in col"),
+            _ => unreachable!("Regex"),
         });
 
-    let id: u16 = (row as u16) * 8 + (col as u16);
-
-    Some((row, col, id))
+    Some(row * 8 + col)
 }
 
 fn get_largest_id(text: &str) -> u16 {
     text.lines()
         .map(|l| l.trim())
         .filter(|l| l.len() > 0)
-        .map(|l| parse_seat_number(l).expect("Expected valid seat").2)
+        .map(|l| parse_seat_number(l).expect("Expected valid seat"))
         .max()
         .expect("No seat numbers found")
 }
@@ -51,20 +49,17 @@ fn find_gap_id(text: &str) -> u16 {
         .lines()
         .map(|l| l.trim())
         .filter(|l| l.len() > 0)
-        .map(|l| parse_seat_number(l).expect("Expected valid seat").2)
+        .map(|l| parse_seat_number(l).expect("Expected valid seat"))
         .collect();
 
     seats.sort();
-    let mut prev = seats[0];
-    for id in seats.iter().skip(1) {
-        if *id > prev + 1 {
-            return prev + 1;
+    seats.iter().try_fold(None, |last, &seat| { 
+        match last {
+            None => Ok(Some(seat)),
+            Some(x) if seat == x+1 => Ok(Some(seat)),
+            Some(x) => Err(x + 1),
         }
-
-        prev = *id;
-    }
-
-    panic!("Didn't find our seat");
+     }).expect_err("Seat not found")
 }
 
 fn inputs() -> String {
@@ -77,9 +72,9 @@ mod tests {
 
     #[test]
     fn example_1() {
-        assert_eq!((44, 5, 357), parse_seat_number("FBFBBFFRLR").unwrap());
-        assert_eq!((70, 7, 567), parse_seat_number("BFFFBBFRRR").unwrap());
-        assert_eq!((102, 4, 820), parse_seat_number("BBFFBBFRLL").unwrap());
+        assert_eq!(357, parse_seat_number("FBFBBFFRLR").unwrap());
+        assert_eq!(567, parse_seat_number("BFFFBBFRRR").unwrap());
+        assert_eq!(820, parse_seat_number("BBFFBBFRLL").unwrap());
     }
 
     #[test]
