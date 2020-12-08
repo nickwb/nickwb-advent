@@ -62,72 +62,75 @@ struct InputInterpretation {
     rules: Vec<BagRule>,
 }
 
+impl InputInterpretation {
+    fn new() -> InputInterpretation {
+        let mut result = InputInterpretation {
+            bag_types: HashMap::new(),
+            rules: Vec::new(),
+        };
+        assert_eq!(SHINY_GOLD_BAG, result.get_or_add_bag_type("shiny gold"));
+        result
+    }
+
+    fn get_or_add_bag_type(&mut self, name: &str) -> BagId {
+        match self.bag_types.get(name) {
+            Some(id) => id.clone(),
+            None => {
+                let id = BagId(self.bag_types.len());
+                self.bag_types.insert(name.to_owned(), id.clone());
+                id
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct BagRule {
     container_bag: BagId,
     contents: Vec<(BagId, usize)>,
 }
 
+// light red bags contain 1 bright white bag, 2 muted yellow bags.
 lazy_static! {
-    static ref BAG_PATTERN: Regex = Regex::new(r"(\d+) (\w+ \w+) bag").unwrap();
+    static ref CONTAINER_PATTERN: Regex = Regex::new(r"^(\w+ \w+) bags contain").unwrap();
+    static ref CONTENTS_PATTERN: Regex = Regex::new(r"(\d+) (\w+ \w+) bag").unwrap();
 }
 
 fn parse_input(text: &str) -> InputInterpretation {
-    let mut next_bag_id: usize = 1;
-    let mut bag_types: HashMap<String, BagId> = HashMap::new();
-    bag_types.insert("shiny gold".to_owned(), SHINY_GOLD_BAG);
+    text.lines().map(|l| l.trim()).filter(|l| l.len() > 0).fold(
+        InputInterpretation::new(),
+        |mut input, line| {
+            let container_bag = input.get_or_add_bag_type(
+                CONTAINER_PATTERN
+                    .captures(line)
+                    .unwrap()
+                    .get(1)
+                    .unwrap()
+                    .as_str(),
+            );
 
-    let mut rules: Vec<BagRule> = Vec::new();
+            let contents: Vec<(BagId, usize)> = CONTENTS_PATTERN
+                .captures_iter(line)
+                .map(|cap| {
+                    (
+                        input.get_or_add_bag_type(cap.get(2).unwrap().as_str()),
+                        cap.get(1).unwrap().as_str().parse::<usize>().unwrap(),
+                    )
+                })
+                .collect();
 
-    let mut get_id = |name: &str| match bag_types.get(name) {
-        Some(id) => id.clone(),
-        None => {
-            let id = BagId(next_bag_id);
-            bag_types.insert(name.to_owned(), id.clone());
-            next_bag_id += 1;
-            id
-        }
-    };
+            if contents.is_empty() {
+                assert!(line.contains("no other bags"));
+            }
 
-    for l in text.lines() {
-        let l = l.trim();
-
-        if l.is_empty() {
-            continue;
-        }
-
-        let mut parts = l.split(" bags contain ");
-        let container_bag = get_id(parts.next().expect("Expected a container"));
-        let contents = parts.next().expect("Expected some contents");
-        assert_eq!(None, parts.next());
-
-        if contents.starts_with("no other bags") {
-            rules.push(BagRule {
+            input.rules.push(BagRule {
                 container_bag,
-                contents: Vec::new(),
+                contents,
             });
-            continue;
-        }
 
-        let contents: Vec<(BagId, usize)> = contents
-            .split(",")
-            .map(|b| {
-                let captures = BAG_PATTERN
-                    .captures(b)
-                    .expect("Expected a valid bag descriptor");
-                let quantity = captures.get(1).unwrap().as_str().parse::<usize>().unwrap();
-                let id = get_id(captures.get(2).unwrap().as_str());
-                (id, quantity)
-            })
-            .collect();
-
-        rules.push(BagRule {
-            container_bag,
-            contents,
-        });
-    }
-
-    InputInterpretation { bag_types, rules }
+            input
+        },
+    )
 }
 
 #[cfg(test)]
