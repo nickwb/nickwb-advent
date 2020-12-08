@@ -179,8 +179,7 @@ impl Program {
         Program {
             instructions: text
                 .lines()
-                .map(|l| l.trim())
-                .filter(|l| l.len() > 0)
+                .filter_map(crate::util::not_blank)
                 .map(|l| Instruction::parse(l).expect("valid instruction"))
                 .collect(),
         }

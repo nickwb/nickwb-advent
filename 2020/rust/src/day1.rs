@@ -49,8 +49,7 @@ fn calculate_part_2(entries: &[i32]) -> i32 {
 fn inputs() -> Vec<i32> {
     crate::util::read_file("inputs/day1.txt")
         .lines()
-        .map(|l| l.trim())
-        .filter(|s| !s.is_empty())
+        .filter_map(crate::util::not_blank)
         .map(|v| match v.parse::<i32>() {
             Ok(v) => v,
             Err(_) => {

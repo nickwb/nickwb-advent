@@ -97,7 +97,7 @@ lazy_static! {
 }
 
 fn parse_input(text: &str) -> InputInterpretation {
-    text.lines().map(|l| l.trim()).filter(|l| l.len() > 0).fold(
+    text.lines().filter_map(crate::util::not_blank).fold(
         InputInterpretation::new(),
         |mut input, line| {
             let container_bag = input.get_or_add_bag_type(

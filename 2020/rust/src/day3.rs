@@ -16,7 +16,7 @@ fn parse_map(text: &str) -> Option<Map> {
         }
     }
 
-    text.lines().map(|l| l.trim()).filter(|l| l.len() > 0).fold(
+    text.lines().filter_map(crate::util::not_blank).fold(
         None,
         |map: Option<Map>, line: &str| match map {
             None => {
