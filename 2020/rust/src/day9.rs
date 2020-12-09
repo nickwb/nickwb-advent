@@ -70,13 +70,10 @@ fn calculate_part_2(input: &[usize], target_value: usize) -> usize {
 fn can_be_summed_from_window(value: usize, window: &VecDeque<usize>) -> bool {
     window
         .iter()
-        .enumerate()
-        .flat_map(|(i, &a)| {
+        .flat_map(|&a| {
             window
                 .iter()
-                .enumerate()
-                .filter(move |&(j, _)| i != j)
-                .map(move |(_, &b)| a + b)
+                .filter_map(move |&b| if a == b { None } else { Some(a + b) })
         })
         .find(|&sum| sum == value)
         .is_some()
