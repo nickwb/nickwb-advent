@@ -1,4 +1,5 @@
-use std::{cmp, collections::VecDeque};
+use itertools::{Itertools, MinMaxResult};
+use std::collections::VecDeque;
 
 pub fn run_day_nine() {
     let inputs = inputs();
@@ -36,35 +37,33 @@ fn calculate_part_1(input: &[usize], window_width: usize) -> usize {
 fn calculate_part_2(input: &[usize], target_value: usize) -> usize {
     let contiguous = input
         .iter()
-        .try_fold(VecDeque::with_capacity(1000), |mut window, &value| {
-            let mut sum: usize = window.iter().sum();
-            if sum < target_value {
-                window.push_back(value);
-                Ok(window)
-            } else if sum > target_value {
-                window.push_back(value);
-                sum += value;
+        .try_fold(
+            (VecDeque::with_capacity(1000), 0usize),
+            |(mut contiguous, mut sum), &value| {
+                if sum < target_value {
+                    contiguous.push_back(value);
+                    sum += value;
+                    Ok((contiguous, sum))
+                } else if sum > target_value {
+                    contiguous.push_back(value);
+                    sum += value;
 
-                while sum > target_value {
-                    sum -= window.pop_front().expect("Not empty");
+                    while sum > target_value {
+                        sum -= contiguous.pop_front().expect("Not empty");
+                    }
+
+                    Ok((contiguous, sum))
+                } else {
+                    Err(contiguous)
                 }
-
-                Ok(window)
-            } else {
-                Err(window)
-            }
-        })
+            },
+        )
         .expect_err("Contiguous range not found");
 
-    let (min, max) = contiguous
-        .iter()
-        .fold(None, |min_max, &value| match min_max {
-            None => Some((value, value)),
-            Some((min, max)) => Some((cmp::min(min, value), cmp::max(max, value))),
-        })
-        .unwrap();
-
-    min + max
+    match contiguous.iter().minmax() {
+        MinMaxResult::MinMax(min, max) => min + max,
+        _ => panic!("Expected more elements"),
+    }
 }
 
 fn can_be_summed_from_window(value: usize, window: &VecDeque<usize>) -> bool {
