@@ -1,4 +1,3 @@
-
 pub fn run_day_five() {
     let inputs = inputs();
     println!("Day 5, Part 1: {}", get_largest_id(&inputs));
@@ -16,7 +15,7 @@ fn parse_seat_number(text: &str) -> u16 {
 fn get_largest_id(text: &str) -> u16 {
     text.lines()
         .filter_map(crate::util::not_blank)
-        .map(|l| parse_seat_number(l))
+        .map(parse_seat_number)
         .max()
         .expect("No seat numbers found")
 }
@@ -25,17 +24,18 @@ fn find_gap_id(text: &str) -> u16 {
     let mut seats: Vec<u16> = text
         .lines()
         .filter_map(crate::util::not_blank)
-        .map(|l| parse_seat_number(l))
+        .map(parse_seat_number)
         .collect();
 
     seats.sort();
-    seats.iter().try_fold(None, |last, &seat| { 
-        match last {
+    seats
+        .iter()
+        .try_fold(None, |last, &seat| match last {
             None => Ok(Some(seat)),
-            Some(x) if seat == x+1 => Ok(Some(seat)),
+            Some(x) if seat == x + 1 => Ok(Some(seat)),
             Some(x) => Err(x + 1),
-        }
-     }).expect_err("Seat not found")
+        })
+        .expect_err("Seat not found")
 }
 
 fn inputs() -> String {

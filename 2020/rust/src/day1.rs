@@ -1,20 +1,10 @@
+use itertools::Itertools;
 use std::iter::Iterator;
 
 fn calculate_part_1(entries: &[i32]) -> i32 {
     entries
         .iter()
-        .enumerate()
-        .flat_map(|(i, &x)| {
-            entries.iter().enumerate().filter_map(
-                move |(j, &y)| {
-                    if i == j {
-                        None
-                    } else {
-                        Some((x, y))
-                    }
-                },
-            )
-        })
+        .tuple_combinations::<(_, _)>()
         .filter_map(|(x, y)| if x + y == 2020 { Some(x * y) } else { None })
         .next()
         .unwrap()
@@ -23,18 +13,7 @@ fn calculate_part_1(entries: &[i32]) -> i32 {
 fn calculate_part_2(entries: &[i32]) -> i32 {
     entries
         .iter()
-        .enumerate()
-        .flat_map(move |(i, &x)| {
-            entries.iter().enumerate().flat_map(move |(j, &y)| {
-                entries.iter().enumerate().filter_map(move |(k, &z)| {
-                    if i == j || i == k || j == k {
-                        None
-                    } else {
-                        Some((x, y, z))
-                    }
-                })
-            })
-        })
+        .tuple_combinations::<(_, _, _)>()
         .filter_map(|(x, y, z)| {
             if x + y + z == 2020 {
                 Some(x * y * z)
