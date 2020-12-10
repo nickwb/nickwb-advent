@@ -12,7 +12,8 @@ fn inputs() -> Vec<usize> {
 }
 
 fn calculate_part_1(input: &[usize]) -> usize {
-    let mut sorted = Vec::from(input);
+    let mut sorted = Vec::with_capacity(input.len() + 1);
+    sorted.extend_from_slice(input);
     sorted.sort();
     sorted.push(sorted[sorted.len() - 1] + 3);
 
@@ -36,13 +37,13 @@ fn calculate_part_1(input: &[usize]) -> usize {
 }
 
 fn calculate_part_2(input: &[usize]) -> usize {
-    let mut sorted: Vec<usize> = Vec::new();
+    let mut sorted: Vec<usize> = Vec::with_capacity(input.len() + 2);
     sorted.push(0);
-    sorted.extend(input);
+    sorted.extend_from_slice(input);
     sorted.sort();
     sorted.push(sorted[sorted.len() - 1] + 3);
 
-    let mut memo = HashMap::new();
+    let mut memo = HashMap::with_capacity(sorted.len());
     find_permutations_recursive(&sorted, &mut memo)
 }
 
@@ -52,28 +53,29 @@ fn find_permutations_recursive(tail: &[usize], memo: &mut HashMap<usize, usize>)
     }
 
     let value = tail[0];
-    let tail = &tail[1..];
-    let end_idx = tail.iter().position(|&v| v > value + 3);
+    let candidates = &tail[1..];
+    let end_idx = candidates.iter().position(|&v| v > value + 3);
 
     let connected = match end_idx {
-        Some(i) => &tail[..i],
-        None => tail,
+        // Exclusive upper-bound, because candidates[end_idx] is larger, not equal, to value+3
+        Some(i) => &candidates[..i],
+        None => candidates,
     };
 
     let result = connected
         .iter()
         .enumerate()
         .map(|(i, _)| {
-            let key = tail.len() - i;
+            let key = candidates.len() - i;
 
             match memo.get(&key) {
                 Some(&v) => v,
-                None => find_permutations_recursive(&tail[i..], memo),
+                None => find_permutations_recursive(&candidates[i..], memo),
             }
         })
         .sum();
 
-    memo.insert(tail.len() + 1, result);
+    memo.insert(tail.len(), result);
     result
 }
 
