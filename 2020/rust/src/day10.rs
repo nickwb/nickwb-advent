@@ -37,6 +37,10 @@ fn calculate_part_1(input: &[usize]) -> usize {
 }
 
 fn calculate_part_2(input: &[usize]) -> usize {
+    if false {
+        return calculate_part_2_alternative(input);
+    }
+
     let mut sorted: Vec<usize> = Vec::with_capacity(input.len() + 2);
     sorted.push(0);
     sorted.extend_from_slice(input);
@@ -84,6 +88,40 @@ fn parse(text: &str) -> Vec<usize> {
         .filter_map(crate::util::not_blank)
         .map(|n| n.parse::<usize>().unwrap())
         .collect()
+}
+
+fn calculate_part_2_alternative(input: &[usize]) -> usize {
+    let mut sorted: Vec<usize> = Vec::with_capacity(input.len() + 2);
+    sorted.push(0);
+    sorted.extend_from_slice(input);
+    sorted.sort();
+    sorted.push(sorted[sorted.len() - 1] + 3);
+
+    let mut combos: Vec<usize> = Vec::with_capacity(sorted.len());
+    combos.resize(sorted.len(), 0);
+
+    for i in (0..sorted.len()).rev() {
+        let tail = &sorted[i..];
+
+        if tail.len() == 1 {
+            combos[i] = 1;
+            continue;
+        }
+
+        let value = tail[0];
+        let candidates = &tail[1..];
+        let start_idx = i + 1;
+        let end_idx = start_idx
+            + candidates
+                .iter()
+                .position(|&v| v > value + 3)
+                .unwrap_or(candidates.len());
+
+        let range = &combos[start_idx..end_idx];
+        combos[i] = range.iter().sum();
+    }
+
+    combos[0]
 }
 
 #[cfg(test)]
