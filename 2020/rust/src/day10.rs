@@ -43,20 +43,16 @@ fn calculate_part_2(input: &[usize]) -> usize {
     sorted.push(sorted[sorted.len() - 1] + 3);
 
     let mut memo = HashMap::new();
-    find_permutations_recursive(&sorted, 0, &mut memo)
+    find_permutations_recursive(&sorted, &mut memo)
 }
 
-fn find_permutations_recursive(
-    sorted: &[usize],
-    start_idx: usize,
-    memo: &mut HashMap<usize, usize>,
-) -> usize {
-    if start_idx == sorted.len() - 1 {
+fn find_permutations_recursive(tail: &[usize], memo: &mut HashMap<usize, usize>) -> usize {
+    if tail.len() == 1 {
         return 1;
     }
 
-    let value = sorted[start_idx];
-    let tail = &sorted[start_idx + 1..];
+    let value = tail[0];
+    let tail = &tail[1..];
     let end_idx = tail.iter().position(|&v| v > value + 3);
 
     let connected = match end_idx {
@@ -68,16 +64,16 @@ fn find_permutations_recursive(
         .iter()
         .enumerate()
         .map(|(i, _)| {
-            let idx = i + start_idx + 1;
+            let key = tail.len() - i;
 
-            match memo.get(&idx) {
+            match memo.get(&key) {
                 Some(&v) => v,
-                None => find_permutations_recursive(sorted, idx, memo),
+                None => find_permutations_recursive(&tail[i..], memo),
             }
         })
         .sum();
 
-    memo.insert(start_idx, result);
+    memo.insert(tail.len() + 1, result);
     result
 }
 
