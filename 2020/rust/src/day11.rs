@@ -1,17 +1,29 @@
-use rayon::prelude::*;
+//use rayon::prelude::*;
 
 pub fn run_day_eleven() {
     let inputs = inputs();
-    println!("Day 11, Part 1: {}", calculate_part_1(inputs.clone()));
-    println!("Day 11, Part 2: {}", calculate_part_2(inputs));
+    let mut update_buffer = Vec::with_capacity((inputs.width * inputs.height) as usize);
+    // println!(
+    //     "Day 11, Part 1: {}",
+    //     calculate_part_1(inputs.clone(), &mut update_buffer)
+    // );
+    // println!(
+    //     "Day 11, Part 2: {}",
+    //     calculate_part_2(inputs, &mut update_buffer)
+    // );
+
+    calculate_part_1(inputs.clone(), &mut update_buffer);
+    calculate_part_2(inputs, &mut update_buffer);
 }
 
-fn calculate_part_1(map: Map) -> usize {
-    run_until_stable_returning_occupied(map, 4, &WalkMode::SingleStep)
+type UpdateBuffer = Vec<(Position, GridCell)>;
+
+fn calculate_part_1(map: Map, update_buffer: &mut UpdateBuffer) -> usize {
+    run_until_stable_returning_occupied(map, update_buffer, 4, &WalkMode::SingleStep)
 }
 
-fn calculate_part_2(map: Map) -> usize {
-    run_until_stable_returning_occupied(map, 5, &WalkMode::ThroughFloor)
+fn calculate_part_2(map: Map, update_buffer: &mut UpdateBuffer) -> usize {
+    run_until_stable_returning_occupied(map, update_buffer, 5, &WalkMode::ThroughFloor)
 }
 
 fn inputs() -> Map {
@@ -36,10 +48,12 @@ struct Map {
 type Position = (isize, isize);
 
 impl Map {
+    #[inline(always)]
     fn seat(&self, position: Position) -> GridCell {
         self.seats[position.1 as usize][position.0 as usize]
     }
 
+    #[inline(always)]
     fn set_seat(&mut self, position: Position, cell: GridCell) {
         self.seats[position.1 as usize][position.0 as usize] = cell;
     }
@@ -78,12 +92,14 @@ fn parse(text: &str) -> Map {
 
 fn run_until_stable_returning_occupied(
     mut map: Map,
+    update_buffer: &mut UpdateBuffer,
     exit_tolerance: usize,
     walk_mode: &WalkMode,
 ) -> usize {
     let mut changes = usize::MAX;
     while changes != 0 {
-        changes = musical_chairs_step(&mut map, exit_tolerance, walk_mode);
+        update_buffer.clear();
+        changes = musical_chairs_step(&mut map, update_buffer, exit_tolerance, walk_mode);
     }
 
     map.seats
@@ -93,8 +109,19 @@ fn run_until_stable_returning_occupied(
         .count()
 }
 
-fn musical_chairs_step(map: &mut Map, exit_tolerance: usize, walk_mode: &WalkMode) -> usize {
-    let changes = filter_map_grid_cells_parallel(map, |map, pos| {
+fn musical_chairs_step(
+    map: &mut Map,
+    update_buffer: &mut UpdateBuffer,
+    exit_tolerance: usize,
+    walk_mode: &WalkMode,
+) -> usize {
+    filter_map_grid_cells_parallel(map, update_buffer, |map, pos| {
+        let cell = map.seat(pos);
+
+        if cell == GridCell::Floor {
+            return None;
+        }
+
         let occupied = fold_adjacent_cells(map, pos, walk_mode, 0usize, |sum, pos| {
             match map.seat(pos) {
                 GridCell::Occupied => sum + 1,
@@ -102,29 +129,35 @@ fn musical_chairs_step(map: &mut Map, exit_tolerance: usize, walk_mode: &WalkMod
             }
         });
 
-        match map.seat(pos) {
+        match cell {
             GridCell::Unoccupied if occupied == 0 => Some((pos, GridCell::Occupied)),
             GridCell::Occupied if occupied >= exit_tolerance => Some((pos, GridCell::Unoccupied)),
             _ => None,
         }
     });
 
-    for change in &changes {
+    for change in update_buffer.iter() {
         map.set_seat(change.0, change.1);
     }
 
-    changes.len()
+    update_buffer.len()
 }
 
 fn filter_map_grid_cells_parallel<U: Send, F: Sync + Fn(&Map, Position) -> Option<U>>(
     map: &Map,
+    update_buffer: &mut Vec<U>,
     f: F,
-) -> Vec<U> {
-    (0..map.width)
-        .into_par_iter()
-        .flat_map(|x| (0..map.height).into_par_iter().map(move |y| (x, y)))
-        .filter_map(|pos| f(map, pos))
-        .collect()
+) {
+    let it = (0..map.height)
+        //.into_par_iter()
+        //.flat_map(|x| (0..map.height).into_par_iter().map(move |y| (x, y)))
+        .flat_map(|y| {
+            (0..map.width) /*.into_par_iter()*/
+                .map(move |x| (x, y))
+        })
+        .filter_map(|pos| f(map, pos));
+
+    update_buffer.extend(it);
 }
 
 #[derive(Debug, PartialEq)]
@@ -206,14 +239,16 @@ mod tests {
         ";
 
         let map = parse(text);
-        assert_eq!(37, calculate_part_1(map.clone()));
-        assert_eq!(26, calculate_part_2(map));
+        let mut buf = Vec::new();
+        assert_eq!(37, calculate_part_1(map.clone(), &mut buf));
+        assert_eq!(26, calculate_part_2(map, &mut buf));
     }
 
     #[test]
     fn actual_inputs() {
         let inputs = inputs();
-        assert_eq!(2273, calculate_part_1(inputs.clone()));
-        assert_eq!(2064, calculate_part_2(inputs));
+        let mut buf = Vec::new();
+        assert_eq!(2273, calculate_part_1(inputs.clone(), &mut buf));
+        assert_eq!(2064, calculate_part_2(inputs, &mut buf));
     }
 }
