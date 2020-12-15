@@ -14,30 +14,45 @@ fn calculate_part_2(inputs: &[usize]) -> usize {
     calculate_with_end_index(inputs, 30000000)
 }
 
+const FAST_ALLOCATION: usize = 5000;
+
 fn calculate_with_end_index(inputs: &[usize], end_at: usize) -> usize {
-    let mut last: HashMap<usize, usize> = HashMap::new();
+    let mut fast_last: [Option<usize>; FAST_ALLOCATION] = [None; FAST_ALLOCATION];
+    let mut extended_last: HashMap<usize, usize> = HashMap::with_capacity(3620000);
+
+    let mut insert_returning_previous = |value, i| {
+        if value < FAST_ALLOCATION {
+            // Safety: If statement already guarantees we are within bounds
+            let result = unsafe { *fast_last.get_unchecked(value) };
+            fast_last[value] = Some(i);
+            return result;
+        }
+
+        extended_last.insert(value, i)
+    };
+
     let mut unpeek: Option<usize> = None;
 
     for (i, &n) in inputs.iter().enumerate() {
-        unpeek = last.insert(n, i + 1);
+        unpeek = insert_returning_previous(n, i + 1);
     }
 
-    let mut i = inputs.len() + 1;
-    let mut prev = inputs.last().copied().unwrap();
+    let mut i = inputs.len();
 
-    while i <= end_at {
+    loop {
+        i += 1;
+
         let next = match unpeek {
             None => 0,
             Some(j) => (i - 1) - j,
         };
 
-        unpeek = last.insert(next, i);
+        if i == end_at {
+            return next;
+        }
 
-        prev = next;
-        i += 1;
+        unpeek = insert_returning_previous(next, i);
     }
-
-    prev
 }
 
 fn inputs() -> Vec<usize> {
@@ -61,6 +76,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(slow_problems)]
     fn example_2() {
         assert_eq!(2578, calculate_part_2(&parse("1,3,2")));
         assert_eq!(3544142, calculate_part_2(&parse("2,1,3")));
