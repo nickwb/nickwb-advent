@@ -1,4 +1,9 @@
-use std::collections::HashMap;
+use std::{
+    borrow::Cow,
+    cell::Cell,
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use itertools::Itertools;
 use nom::{
@@ -36,6 +41,15 @@ struct MessageRule {
 struct Day19 {
     rules: HashMap<RuleNum, MessageRule>,
     messages: Vec<String>,
+    enable_verbose: Cell<bool>,
+}
+
+impl Day19 {
+    pub fn verbose_log(&self, args: fmt::Arguments) {
+        if self.enable_verbose.get() {
+            eprintln!("{}", args);
+        }
+    }
 }
 
 fn inputs() -> Day19 {
@@ -45,14 +59,7 @@ fn inputs() -> Day19 {
 }
 
 fn calculate_part_1(input: &Day19) -> usize {
-    input
-        .messages
-        .iter()
-        .filter(|m| match evaluate_rule(0, &m, 0, input, &mut Vec::new()) {
-            Some(remaining) => remaining.len() == 0,
-            None => false,
-        })
-        .count()
+    input.messages.iter().filter(|m| is_match(input, m)).count()
 }
 
 fn calculate_part_2(input: &mut Day19) -> usize {
@@ -70,17 +77,70 @@ fn calculate_part_2(input: &mut Day19) -> usize {
             spec: RuleSpec::Alternation((vec![42, 31], vec![42, 11, 31])),
         },
     );
-    input
-        .messages
-        .iter()
-        .filter(|m| match evaluate_rule(0, &m, 0, input, &mut Vec::new()) {
-            Some(remaining) => remaining.len() == 0,
-            None => false,
-        })
-        .count()
+    input.messages.iter().filter(|m| is_match(input, m)).count()
 }
 
-type SeenSet = Vec<(usize, RuleNum)>;
+const VERBOSE_FOR: [&'static str; 3] = [
+    "bbbbbbbaaaabbbbaaabbabaaa",
+    "bbbababbbbaaaaaaaabbababaaababaabab",
+    "abbbbabbbbaaaababbbbbbaaaababb",
+];
+
+fn is_match(model: &Day19, message: &str) -> bool {
+    let mut alternatives = AlternativesState {
+        failed: HashSet::new(),
+        maybe: HashSet::new(),
+        stack: Vec::new(),
+    };
+
+    if VERBOSE_FOR.contains(&message) {
+        model.enable_verbose.set(true);
+    } else {
+        model.enable_verbose.set(false);
+    }
+
+    loop {
+        match evaluate_rule(0, &message, 0, model, "", &mut alternatives) {
+            None => {
+                eprintln!("Message {} is not a match", message);
+                return false;
+            }
+            Some(result) => {
+                if result.remaining.is_empty() {
+                    eprintln!("Message {} is a match", message);
+                    return true;
+                }
+                if result.is_exhausted {
+                    eprintln!(
+                        "Message {} is not a match. Leftover: {}",
+                        message, result.remaining
+                    );
+
+                    return false;
+                }
+                eprintln!("Rule 0 was not exhausted...");
+            }
+        }
+    }
+}
+
+struct EvaluateResult<'a> {
+    remaining: &'a str,
+    is_exhausted: bool,
+    path_update: Option<String>,
+}
+
+#[derive(PartialEq)]
+struct Candidate {
+    pos: usize,
+    rule_num: RuleNum,
+}
+
+struct AlternativesState {
+    failed: HashSet<String>,
+    maybe: HashSet<String>,
+    stack: Vec<Candidate>,
+}
 
 // Recursively evaluates rules on the supplied text.
 // On a successful match, it returns the remaining (unmatched) text.
@@ -88,71 +148,264 @@ type SeenSet = Vec<(usize, RuleNum)>;
 fn evaluate_rule<'a>(
     pos: usize,
     text: &'a str,
-    idx: RuleNum,
-    input: &Day19,
-    seen: &mut SeenSet,
-) -> Option<&'a str> {
-    // If we have been at this position and this rule number before, we will recurse infinitely
-    if seen.iter().rev().contains(&(pos, idx)) {
+    rule_num: RuleNum,
+    model: &Day19,
+    path: &str,
+    alternatives: &mut AlternativesState,
+) -> Option<EvaluateResult<'a>> {
+    if text.is_empty() {
         return None;
     }
 
-    seen.push((pos, idx));
-    let backtrack_to = seen.len();
+    let unwind_stack_to = alternatives.stack.len();
+    let candidate = Candidate { pos, rule_num };
 
-    fn backtrack(seen: &mut SeenSet, to: usize) {
-        while seen.len() > to {
-            seen.pop();
-        }
-    };
-
-    let rule = input.rules.get(&idx)?;
-
-    fn fold_sequence<'a>(
-        pos: usize,
-        text: &'a str,
-        input: &Day19,
-        nums: &[RuleNum],
-        seen: &mut SeenSet,
-    ) -> Option<&'a str> {
-        let mut text = text;
-        let mut pos = pos;
-        for num in nums {
-            let next = evaluate_rule(pos, text, *num, input, seen)?;
-            pos += text.len() - next.len();
-            text = next;
-        }
-        Some(text)
+    if alternatives.stack.iter().rev().contains(&candidate) {
+        eprintln!("Avoiding infinite recursion...");
+        return None;
+    } else {
+        alternatives.stack.push(candidate);
     }
+
+    let rule = model
+        .rules
+        .get(&rule_num)
+        .expect("The rule number to exist");
 
     let result = match &rule.spec {
         RuleSpec::Literal(c) => {
             if text.starts_with(*c) {
-                Some(&text[1..])
+                Some(EvaluateResult {
+                    remaining: &text[1..],
+                    is_exhausted: true,
+                    path_update: None,
+                })
             } else {
                 None
             }
         }
-        RuleSpec::Sequence(nums) => fold_sequence(pos, text, input, &nums, seen),
-        RuleSpec::Alternation((nums_a, nums_b)) => {
-            let first = fold_sequence(pos, text, input, &nums_a, seen);
-            match first {
-                result @ Some(_) => result,
+        RuleSpec::Sequence(rule_nums) => {
+            evaluate_sequence(pos, text, model, path, alternatives, &rule_nums)
+        }
+        RuleSpec::Alternation((sequence_x, sequence_y)) => evaluate_alternation(
+            pos,
+            text,
+            model,
+            path,
+            alternatives,
+            &sequence_x,
+            &sequence_y,
+        ),
+    };
+
+    while alternatives.stack.len() > unwind_stack_to {
+        alternatives.stack.pop();
+    }
+
+    result
+}
+
+fn evaluate_alternation<'a>(
+    pos: usize,
+    text: &'a str,
+    model: &Day19,
+    path: &str,
+    alternatives: &mut AlternativesState,
+    sequence_x: &[RuleNum],
+    sequence_y: &[RuleNum],
+) -> Option<EvaluateResult<'a>> {
+    let x_path = format!("{}X", path);
+    let y_path = format!("{}Y", path);
+
+    let x_failed = alternatives.failed.contains(&x_path);
+    let y_failed = alternatives.failed.contains(&y_path);
+    let x_maybe = alternatives.maybe.contains(&x_path);
+    let y_maybe = alternatives.maybe.contains(&y_path);
+
+    let (skip_x, skip_y) = match (x_failed, y_failed, x_maybe, y_maybe) {
+        (false, false, false, false) => (false, false), // 0000 Nothing tried
+        (false, false, false, true) => unreachable!(),  // 0001
+        (false, false, true, false) => (true, false),   // 0010 X works, but Y not yet tried
+        (false, false, true, true) => {
+            todo!()
+        }
+        (false, true, false, false) => unreachable!(), // 0100
+        (false, true, false, true) => unreachable!(),  // 0101
+        (false, true, true, false) => (false, true),   // 0110 Only X works
+        (false, true, true, true) => unreachable!(),   // 0111
+        (true, false, false, false) => (true, false),  // 1000 X does not work, Y not yet tried
+        (true, false, false, true) => (true, false),   // 1001 X does not work, Y does work
+        (true, false, true, false) => unreachable!(),  // 1010
+        (true, false, true, true) => unreachable!(),   // 1011
+        (true, true, false, false) => (false, false),  // 1100 Neither work
+        (true, true, false, true) => unreachable!(),   // 1101
+        (true, true, true, false) => unreachable!(),   // 1110
+        (true, true, true, true) => unreachable!(),    // 1111
+    };
+
+    let x_result = if skip_x {
+        model.verbose_log(format_args!(
+            "Returned to path: {} at position {} with remainder: {}",
+            &x_path, pos, text,
+        ));
+        None
+    } else {
+        evaluate_sequence(pos, text, model, &x_path, alternatives, sequence_x)
+    };
+
+    match x_result {
+        Some(result) => {
+            // let path_update = if result.is_exhausted {
+            //     let u = result.path_update.unwrap_or_else(|| x_path.clone());
+            //     model.verbose_log(format_args!(
+            //         "Excluding exhausted path: {} at position {} with remainder: {}",
+            //         &x_path, pos, result.remaining,
+            //     ));
+            //     alternatives.maybe.insert(x_path);
+            //     u
+            // } else {
+            //     result.path_update.unwrap_or(x_path)
+            // };
+            let path_update = result.path_update.unwrap_or_else(|| x_path.clone());
+            if !x_maybe {
+                alternatives.maybe.insert(x_path);
+            }
+
+            Some(EvaluateResult {
+                remaining: result.remaining,
+                is_exhausted: y_failed && result.is_exhausted,
+                path_update: Some(path_update),
+            })
+        }
+        None => {
+            if !skip_x {
+                alternatives.failed.insert(x_path);
+            }
+
+            if skip_y {
+                model.verbose_log(format_args!(
+                    "Returned to path: {} at position {} with remainder: {}",
+                    &y_path, pos, text,
+                ));
+                return None;
+            }
+
+            let y_result = evaluate_sequence(pos, text, model, &y_path, alternatives, sequence_y);
+
+            match y_result {
+                Some(result) => {
+                    // let path_update = if result.is_exhausted {
+                    //     let u = result.path_update.unwrap_or_else(|| y_path.clone());
+                    //     model.verbose_log(format_args!(
+                    //         "Excluding exhausted path: {} at position {} with remainder: {}",
+                    //         &y_path, pos, result.remaining,
+                    //     ));
+                    //     alternatives.maybe.insert(y_path);
+                    //     u
+                    // } else {
+                    //     result.path_update.unwrap_or(y_path)
+                    // };
+                    let path_update = result.path_update.unwrap_or_else(|| y_path.clone());
+                    if !y_maybe {
+                        alternatives.maybe.insert(y_path);
+                    }
+
+                    Some(EvaluateResult {
+                        remaining: result.remaining,
+                        is_exhausted: x_failed && result.is_exhausted,
+                        path_update: Some(path_update),
+                    })
+                }
                 None => {
-                    backtrack(seen, backtrack_to);
-                    fold_sequence(pos, text, input, &nums_b, seen)
+                    if !skip_y {
+                        alternatives.failed.insert(y_path);
+                    }
+                    None
                 }
             }
         }
-    };
+    }
+}
 
-    match result {
-        good @ Some(_) => good,
-        None => {
-            backtrack(seen, backtrack_to);
-            None
+fn evaluate_sequence<'a, 'b>(
+    pos: usize,
+    text: &'a str,
+    model: &Day19,
+    path: &'b str,
+    alternatives: &mut AlternativesState,
+    rule_number_sequence: &[RuleNum],
+) -> Option<EvaluateResult<'a>> {
+    #[derive(Clone)]
+    struct FoldState<'a, 'b> {
+        text: &'a str,
+        pos: usize,
+        idx: usize,
+        path: Cow<'b, str>,
+    }
+
+    let mut state = FoldState {
+        text,
+        pos,
+        idx: 0,
+        path: Cow::Borrowed(path),
+    };
+    let mut backtracks: Vec<FoldState> = Vec::new();
+
+    'rules: loop {
+        let rule_num = rule_number_sequence[state.idx];
+
+        let sub_result = evaluate_rule(
+            state.pos,
+            state.text,
+            rule_num,
+            model,
+            &state.path,
+            alternatives,
+        );
+
+        if let None = sub_result {
+            if let Some(pop_state) = backtracks.pop() {
+                state = pop_state;
+                continue 'rules;
+            } else {
+                return None;
+            }
+        }
+
+        let sub_result = sub_result.unwrap();
+
+        if !sub_result.is_exhausted {
+            backtracks.push(state.clone());
+        }
+
+        // The sub rule successfully matched with an alternation, so update our path
+        if let Some(path) = sub_result.path_update {
+            state.path = Cow::Owned(path);
+        }
+
+        let advanced_by = state.text.len() - sub_result.remaining.len();
+
+        state.pos += advanced_by;
+        state.text = sub_result.remaining;
+        state.idx += 1;
+
+        // We've finished matching the sequence successfully
+        if state.idx == rule_number_sequence.len() {
+            break;
         }
     }
+
+    let path_update = match state.path {
+        Cow::Borrowed(b) if b == path => None,
+        Cow::Borrowed(b) => Some(b.to_owned()), // Paranoia, but shouldn't ever happen
+        Cow::Owned(o) => Some(o),
+    };
+
+    Some(EvaluateResult {
+        remaining: state.text,
+        is_exhausted: backtracks.is_empty(),
+        path_update: path_update,
+    })
 }
 
 fn input_parser<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, Day19> {
@@ -207,6 +460,7 @@ fn input_parser<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, Day19> {
         tuple((parse_all_rules, parse_blank_line, parse_all_messages)).map(|(r, _, m)| Day19 {
             rules: r.into_iter().map(|r| (r.num, r)).collect(),
             messages: m,
+            enable_verbose: Cell::new(false),
         });
 
     all_consuming(delimited(multispace0, parse_all_inputs, multispace0))
