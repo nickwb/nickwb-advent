@@ -36,7 +36,7 @@ fn recursive_wave_collapse<'a>(grid: CandidateGrid<'a>) -> Option<CandidateGrid<
 
 #[derive(Debug, Clone)]
 pub struct CandidateGrid<'a> {
-    expanded_input: &'a ExpandedInput<'a>,
+    pub expanded_input: &'a ExpandedInput<'a>,
     cells: Vec<GridCell>,
 }
 
@@ -286,6 +286,15 @@ impl<'a> CandidateGrid<'a> {
             .get_tile_id(&self.expanded_input)
             .expect("An id");
         a * b * c * d
+    }
+
+    pub fn variant_at(&self, x: u8, y: u8) -> &Variant {
+        let cell = self.get(x, y);
+        if let Some((v, _)) = cell.resolved {
+            &self.expanded_input.variants[v.0]
+        } else {
+            panic!("Unresolved cell");
+        }
     }
 }
 

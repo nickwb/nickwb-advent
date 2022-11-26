@@ -1,20 +1,25 @@
+mod bitmap;
 mod input;
 mod monster;
 mod wave;
 
-use self::wave::solve_grid;
+use self::{bitmap::Bitmap, monster::ResolvedImage, wave::solve_grid};
 use input::*;
 
 pub fn run_day_twenty() {
     let inputs = inputs();
-    println!("Day 20, Part 1: {}", calculate_part_1(&inputs));
-    // println!("Day 20, Part 2: {}", calculate_part_2(&mut inputs));
+    let (part_1, part_2) = calculate_both_parts(&inputs);
+    println!("Day 20, Part 1: {}", part_1);
+    println!("Day 20, Part 2: {}", part_2);
 }
 
-fn calculate_part_1(input: &Inputs) -> i64 {
+fn calculate_both_parts(input: &Inputs) -> (i64, i64) {
     let expanded_input = ExpandedInput::build(input);
     let grid = solve_grid(&expanded_input).expect("A solution");
-    grid.corner_product()
+    let part_1 = grid.corner_product();
+    let resolved: ResolvedImage = grid.into();
+    eprintln!("Resolved: \r\n{}", resolved.to_string());
+    (part_1, 0)
 }
 
 // fn calculate_part_2(input: &Day19) -> usize {
@@ -142,14 +147,16 @@ mod tests {
             ..#.###...
         ";
 
-        let input = Inputs::parse(text);
-        assert_eq!(20899048083289, calculate_part_1(&input));
+        let inputs = Inputs::parse(text);
+        let (part_1, part_2) = calculate_both_parts(&inputs);
+        assert_eq!(20899048083289, part_1);
     }
 
     #[test]
     fn actual_inputs() {
         let inputs = inputs();
-        assert_eq!(23386616781851, calculate_part_1(&inputs));
+        let (part_1, part_2) = calculate_both_parts(&inputs);
+        assert_eq!(23386616781851, part_1);
         // assert_eq!(253, calculate_part_2(&mut inputs));
     }
 }

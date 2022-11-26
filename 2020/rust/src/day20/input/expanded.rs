@@ -1,3 +1,5 @@
+use crate::day20::bitmap::Bitmap;
+
 use super::{Flip, Inputs, Rotation, Tile, TileBitmap, TileIndex};
 use itertools::Itertools;
 use std::{collections::HashMap, ops::Index};
@@ -6,7 +8,7 @@ use std::{collections::HashMap, ops::Index};
 pub struct Variant {
     pub id: VariantId,
     pub tile: TileIndex,
-    map: TileBitmap,
+    pub map: TileBitmap,
     edges: Edges,
 }
 
@@ -60,8 +62,6 @@ impl<'a> ExpandedInput<'a> {
                 Variant {
                     id: VariantId(0), // We'll fix this later
                     tile: tile.idx,
-                    // flip: f,
-                    // rotation: r,
                     map,
                     edges: Edges::from_bitmap(&map),
                 }
@@ -200,20 +200,6 @@ impl Edge {
     fn new(side: Side) -> Self {
         Edge { pixels: 0, side }
     }
-
-    // fn to_string(&self) -> String {
-    //     let mut buffer = String::with_capacity(10);
-    //     for w in 0..10 {
-    //         let sym = if self.is_set(w) { '#' } else { '.' };
-    //         buffer.push(sym);
-    //     }
-
-    //     buffer
-    // }
-
-    // fn is_set(&self, w: u8) -> bool {
-    //     (self.pixels & Edge::to_mask(w)) > 0
-    // }
 
     fn set(&mut self, w: u8, on: bool) {
         let mask = Edge::to_mask(w);

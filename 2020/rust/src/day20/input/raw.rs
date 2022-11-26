@@ -1,6 +1,5 @@
+use crate::day20::bitmap::Bitmap;
 use regex::Regex;
-
-use super::{Flip, Rotation};
 
 #[derive(Debug)]
 pub struct Inputs {
@@ -36,7 +35,7 @@ impl Inputs {
                 next_tile = Some(Tile {
                     id,
                     idx: TileIndex(idx),
-                    map: TileBitmap::empty(),
+                    map: TileBitmap::empty(10),
                 });
                 y = 0;
                 idx += 1;
@@ -82,71 +81,31 @@ pub struct TileBitmap {
     pixels: u128,
 }
 
-impl TileBitmap {
-    fn empty() -> TileBitmap {
+impl Bitmap for TileBitmap {
+    fn empty(square_length: u8) -> Self {
+        assert_eq!(10, square_length);
         TileBitmap { pixels: 0 }
     }
 
-    pub fn flip(&self, flip: Flip) -> TileBitmap {
-        let mut result = TileBitmap::empty();
-        for y in 0..10 {
-            for x in 0..10 {
-                let source = self.is_set(x, y);
-                let (dest_x, dest_y) = match flip {
-                    Flip::None => (x, y),
-                    Flip::Horizontal => (9 - x, y),
-                    Flip::Vertical => (x, 9 - y),
-                    Flip::Both => (9 - x, 9 - y),
-                };
-                result.set(dest_x, dest_y, source);
-            }
-        }
-        result
+    fn square_length(&self) -> u8 {
+        10
     }
 
-    pub fn rotate(&self, rotation: Rotation) -> TileBitmap {
-        let mut result = TileBitmap::empty();
-        for y in 0..10 {
-            for x in 0..10 {
-                let source = self.is_set(x, y);
-                let (dest_x, dest_y) = match rotation {
-                    Rotation::R0 => (x, y),
-                    Rotation::R180 => (9 - x, 9 - y),
-                    Rotation::R90 => (9 - y, x),
-                    Rotation::R270 => (y, 9 - x),
-                };
-                result.set(dest_x, dest_y, source);
-            }
-        }
-        result
-    }
-
-    // fn to_string(&self) -> String {
-    //     let mut buffer = String::with_capacity(10 * (10 + 2));
-    //     for y in 0..10 {
-    //         for x in 0..10 {
-    //             let sym = if self.is_set(x, y) { '#' } else { '.' };
-    //             buffer.push(sym);
-    //         }
-    //         buffer.push_str("\r\n");
-    //     }
-
-    //     buffer
-    // }
-
-    pub fn is_set(&self, x: u8, y: u8) -> bool {
-        (TileBitmap::to_mask(x, y) & self.pixels) > 0
+    fn is_set(&self, x: u8, y: u8) -> bool {
+        (Self::to_mask(x, y) & self.pixels) > 0
     }
 
     fn set(&mut self, x: u8, y: u8, on: bool) {
-        let mask = TileBitmap::to_mask(x, y);
+        let mask = Self::to_mask(x, y);
         if on {
             self.pixels |= mask;
         } else {
             self.pixels &= !mask;
         }
     }
+}
 
+impl TileBitmap {
     fn to_mask(x: u8, y: u8) -> u128 {
         1 << TileBitmap::to_idx(x, y)
     }
