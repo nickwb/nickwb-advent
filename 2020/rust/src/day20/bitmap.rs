@@ -1,5 +1,14 @@
 use super::input::{Flip, Rotation};
 
+const ALL_FLIPS: [Flip; 4] = [Flip::None, Flip::Horizontal, Flip::Vertical, Flip::Both];
+const ALL_ROTATIONS: [Rotation; 4] = [Rotation::R0, Rotation::R90, Rotation::R180, Rotation::R270];
+
+pub fn all_bitmap_variants() -> impl Iterator<Item = (Flip, Rotation)> {
+    ALL_FLIPS
+        .iter()
+        .flat_map(|&f| ALL_ROTATIONS.iter().map(move |&r| (f, r)))
+}
+
 pub trait Bitmap {
     fn empty(square_length: u8) -> Self;
     fn square_length(&self) -> u8;
@@ -50,21 +59,5 @@ pub trait Bitmap {
             }
         }
         result
-    }
-
-    fn to_string(&self) -> String {
-        let length = self.square_length() as usize;
-        let mut buffer = String::with_capacity((length * 3) * length);
-
-        for y in 0..length {
-            for x in 0..length {
-                let bit = self.is_set(x as u8, y as u8);
-                buffer.push(if bit { '#' } else { '.' });
-            }
-
-            buffer.push_str("\r\n");
-        }
-
-        buffer
     }
 }

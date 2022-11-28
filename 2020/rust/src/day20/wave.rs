@@ -71,8 +71,8 @@ impl<'a> CandidateGrid<'a> {
 
                 let idx = CellIndex(next_idx);
 
-                assert_eq!((x, y), Self::index_to_xy(expanded_input, idx));
-                assert_eq!(idx, Self::xy_to_index(expanded_input, x, y));
+                // assert_eq!((x, y), Self::index_to_xy(expanded_input, idx));
+                // assert_eq!(idx, Self::xy_to_index(expanded_input, x, y));
 
                 next_idx += 1;
 
@@ -98,7 +98,7 @@ impl<'a> CandidateGrid<'a> {
     fn get(&self, x: u8, y: u8) -> &GridCell {
         let idx = Self::xy_to_index(self.expanded_input, x, y);
         let cell = &self.cells[idx.0];
-        assert!(cell.x == x && cell.y == y);
+        //assert!(cell.x == x && cell.y == y);
         cell
     }
 
@@ -191,7 +191,7 @@ impl<'a> CandidateGrid<'a> {
             if x > 0 {
                 let x = x - 1;
                 let cell_left = Self::xy_to_index(expanded_input, x, y);
-                assert!(cell_left.0 < self.cells.len());
+                //assert!(cell_left.0 < self.cells.len());
                 if self.remove_incompatible_candidates(cell_idx, cell_left, Side::Left) {
                     maybe_revisit(expanded_input, &mut cell_queue, x, y);
                 }
@@ -200,7 +200,7 @@ impl<'a> CandidateGrid<'a> {
             if x < last {
                 let x = x + 1;
                 let cell_right = Self::xy_to_index(expanded_input, x, y);
-                assert!(cell_right.0 < self.cells.len());
+                //assert!(cell_right.0 < self.cells.len());
                 if self.remove_incompatible_candidates(cell_idx, cell_right, Side::Right) {
                     maybe_revisit(expanded_input, &mut cell_queue, x, y);
                 }
@@ -209,7 +209,7 @@ impl<'a> CandidateGrid<'a> {
             if y > 0 {
                 let y = y - 1;
                 let cell_top = Self::xy_to_index(expanded_input, x, y);
-                assert!(cell_top.0 < self.cells.len());
+                //assert!(cell_top.0 < self.cells.len());
                 if self.remove_incompatible_candidates(cell_idx, cell_top, Side::Top) {
                     maybe_revisit(expanded_input, &mut cell_queue, x, y);
                 }
@@ -218,7 +218,7 @@ impl<'a> CandidateGrid<'a> {
             if y < last {
                 let y = y + 1;
                 let cell_bottom = Self::xy_to_index(expanded_input, x, y);
-                assert!(cell_bottom.0 < self.cells.len());
+                //assert!(cell_bottom.0 < self.cells.len());
                 if self.remove_incompatible_candidates(cell_idx, cell_bottom, Side::Bottom) {
                     maybe_revisit(expanded_input, &mut cell_queue, x, y);
                 }
@@ -272,19 +272,19 @@ impl<'a> CandidateGrid<'a> {
         let a = self
             .get(0, 0)
             .get_tile_id(&self.expanded_input)
-            .expect("An id");
+            .expect("Expected to resolve Tile Id at 0,0");
         let b = self
             .get(0, last)
             .get_tile_id(&self.expanded_input)
-            .expect("An id");
+            .expect("Expected to resolve Tile Id at 0,n");
         let c = self
             .get(last, 0)
             .get_tile_id(&self.expanded_input)
-            .expect("An id");
+            .expect("Expected to resolve Tile Id at n,0");
         let d = self
             .get(last, last)
             .get_tile_id(&self.expanded_input)
-            .expect("An id");
+            .expect("Expected to resolve Tile Id at n,n");
         a * b * c * d
     }
 

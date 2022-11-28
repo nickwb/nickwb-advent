@@ -1,4 +1,5 @@
 use crate::day20::bitmap::Bitmap;
+use bitvec::{bitarr, BitArr};
 use regex::Regex;
 
 #[derive(Debug)]
@@ -21,16 +22,11 @@ impl Inputs {
             if let Some(c) = header.captures(l) {
                 let finished = next_tile.take();
                 if let Some(t) = finished {
-                    assert!(t.idx.0 == tiles.len());
+                    //assert!(t.idx.0 == tiles.len());
                     tiles.push(t);
                 }
 
-                let id: i64 = c
-                    .get(1)
-                    .expect("An id")
-                    .as_str()
-                    .parse()
-                    .expect("Id is an int");
+                let id: i64 = c.get(1).unwrap().as_str().parse().unwrap();
 
                 next_tile = Some(Tile {
                     id,
@@ -42,7 +38,9 @@ impl Inputs {
                 continue;
             }
 
-            let tile = next_tile.as_mut().expect("Working on a tile");
+            let tile = next_tile
+                .as_mut()
+                .expect("Expected a tile header to proceed pixel data");
             for (x, c) in l.chars().enumerate() {
                 let on = c == '#';
                 tile.map.set(x as u8, y, on);
@@ -52,7 +50,7 @@ impl Inputs {
         }
 
         if let Some(t) = next_tile {
-            assert!(t.idx.0 == tiles.len());
+            //assert!(t.idx.0 == tiles.len());
             tiles.push(t);
         }
 
@@ -78,13 +76,15 @@ pub struct Tile {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TileBitmap {
-    pixels: u128,
+    pixels: BitArr!(for 100, in usize),
 }
 
 impl Bitmap for TileBitmap {
-    fn empty(square_length: u8) -> Self {
-        assert_eq!(10, square_length);
-        TileBitmap { pixels: 0 }
+    fn empty(_square_length: u8) -> Self {
+        //assert_eq!(10, square_length);
+        TileBitmap {
+            pixels: bitarr![0; 100],
+        }
     }
 
     fn square_length(&self) -> u8 {
@@ -92,26 +92,16 @@ impl Bitmap for TileBitmap {
     }
 
     fn is_set(&self, x: u8, y: u8) -> bool {
-        (Self::to_mask(x, y) & self.pixels) > 0
+        self.pixels[Self::to_idx(x, y)]
     }
 
     fn set(&mut self, x: u8, y: u8, on: bool) {
-        let mask = Self::to_mask(x, y);
-        if on {
-            self.pixels |= mask;
-        } else {
-            self.pixels &= !mask;
-        }
+        self.pixels.set(Self::to_idx(x, y), on);
     }
 }
 
 impl TileBitmap {
-    fn to_mask(x: u8, y: u8) -> u128 {
-        1 << TileBitmap::to_idx(x, y)
-    }
-
-    fn to_idx(x: u8, y: u8) -> u8 {
-        assert!(x <= 9 && y <= 9);
-        ((9 - y) * 10) + (9 - x)
+    fn to_idx(x: u8, y: u8) -> usize {
+        ((y as usize) * 10) + (x as usize)
     }
 }

@@ -1,6 +1,5 @@
-use crate::day20::bitmap::Bitmap;
-
-use super::{Flip, Inputs, Rotation, Tile, TileBitmap, TileIndex};
+use super::{Inputs, Tile, TileBitmap, TileIndex};
+use crate::day20::bitmap::{all_bitmap_variants, Bitmap};
 use itertools::Itertools;
 use std::{collections::HashMap, ops::Index};
 
@@ -48,15 +47,8 @@ impl<'a> ExpandedInput<'a> {
         }
     }
 
-    const ALL_FLIPS: [Flip; 4] = [Flip::None, Flip::Horizontal, Flip::Vertical, Flip::Both];
-    const ALL_ROTATIONS: [Rotation; 4] =
-        [Rotation::R0, Rotation::R90, Rotation::R180, Rotation::R270];
-
     fn make_variants(tile: &'a Tile) -> impl Iterator<Item = Variant> + 'a {
-        ExpandedInput::ALL_FLIPS
-            .iter()
-            .cloned()
-            .cartesian_product(ExpandedInput::ALL_ROTATIONS.iter().cloned())
+        all_bitmap_variants()
             .map(move |(f, r)| {
                 let map = tile.map.flip(f).rotate(r);
                 Variant {
