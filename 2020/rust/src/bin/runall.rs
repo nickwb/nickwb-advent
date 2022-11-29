@@ -21,4 +21,5 @@ fn main() {
     day18::run_day_eighteen();
     day19::run_day_nineteen();
     day20::run_day_twenty();
+    day21::run_day_twenty_one();
 }
