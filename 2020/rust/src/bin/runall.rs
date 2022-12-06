@@ -23,4 +23,5 @@ fn main() {
     day20::run_day_twenty();
     day21::run_day_twenty_one();
     day22::run_day_twenty_two();
+    day23::run_day_twenty_three();
 }
