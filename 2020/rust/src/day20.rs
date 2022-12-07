@@ -10,10 +10,20 @@ use self::{
 use input::*;
 
 pub fn run_day_twenty() {
-    let inputs = inputs();
-    let (part_1, part_2) = calculate_both_parts(&inputs);
-    println!("Day 20, Part 1: {}", part_1);
-    println!("Day 20, Part 2: {}", part_2);
+    #[cfg(feature = "slow_problems")]
+    {
+        let inputs = inputs();
+        let (part_1, part_2) = calculate_both_parts(&inputs);
+
+        println!("Day 20, Part 1: {}", part_1);
+        println!("Day 20, Part 2: {}", part_2);
+    }
+
+    #[cfg(not(feature = "slow_problems"))]
+    {
+        println!("Day 20, Part 1: SKIPPED");
+        println!("Day 20, Part 2: SKIPPED");
+    }
 }
 
 fn calculate_both_parts(input: &Inputs) -> (i64, i64) {
@@ -34,6 +44,7 @@ fn inputs() -> Inputs {
 }
 
 #[cfg(test)]
+#[cfg(feature = "slow_problems")]
 mod tests {
     use super::*;
 

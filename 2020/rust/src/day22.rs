@@ -180,6 +180,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "slow_problems")]
     fn actual_inputs() {
         let mut inputs = inputs();
         let (part_1, part_2) = calculate_both_parts(&mut inputs);
