@@ -16,7 +16,6 @@ struct InputInterpretation {
 struct Reaction {
     pub cost: Vec<usize>,
     pub output: Output,
-    pub idx: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -91,7 +90,6 @@ impl InputInterpretation {
                     compound_idx: output_compound_idx,
                     quantity: output_quantity,
                 },
-                idx: result.reactions.len(),
             };
 
             result.reactions.push(reaction);
@@ -125,7 +123,6 @@ impl InputInterpretation {
                 // happy by guaranteeing that all elements of the reaction
                 // Vec are a valid instance of the Reaction struct.
                 (ORE_IDX, None) => Reaction {
-                    idx: ORE_IDX,
                     output: Output {
                         compound_idx: ORE_IDX,
                         quantity: 1,
@@ -357,10 +354,6 @@ fn calculate_part_1(input: &InputInterpretation) -> usize {
 // With the amortised cost calculated, we can divide the trillion ore through
 // it, and then round down to the nearest integer.
 fn calculate_part_2(input: &InputInterpretation) -> usize {
-    if false {
-        return integer_part_two::calculate_part_2(input);
-    }
-
     fn get_amortised_cost_recursive(
         input: &InputInterpretation,
         memo: &mut HashMap<usize, f64>,
@@ -524,185 +517,4 @@ fn actual_part_1() {
 fn actual_part_2() {
     let input = inputs();
     assert_eq!(3279311, calculate_part_2(&input));
-}
-
-mod integer_part_two {
-    use super::*;
-    use rayon::prelude::*;
-    use std::collections::HashSet;
-
-    #[derive(Clone)]
-    struct FuelStep {
-        idx: usize,
-        ore: usize,
-        cumulative_ore: usize,
-        overflow: Vec<usize>,
-    }
-
-    struct CycleSearchState {
-        steps: Vec<FuelStep>,
-        hashes: HashSet<usize>,
-    }
-
-    enum CycleSearchResult {
-        ResultFound(usize),
-        KeepTrying,
-        AbandonSearch,
-    }
-
-    const LARGEST_CYCLE: usize = 10000;
-
-    impl CycleSearchState {
-        fn new() -> CycleSearchState {
-            CycleSearchState {
-                steps: Vec::new(),
-                hashes: HashSet::new(),
-            }
-        }
-
-        fn check_for_cycle(&mut self, step: FuelStep) -> CycleSearchResult {
-            let hash = CycleSearchState::tiny_hash(&step.overflow);
-
-            let previous = {
-                if !self.hashes.contains(&hash) {
-                    None
-                } else {
-                    let found = self
-                        .steps
-                        .par_iter()
-                        .find_any(|x| x.overflow == step.overflow);
-                    found.cloned()
-                }
-            };
-
-            if let Some(p) = previous {
-                CycleSearchResult::ResultFound(self.extrapolate(p.idx, step.idx - 1))
-            } else {
-                if step.idx > LARGEST_CYCLE {
-                    return CycleSearchResult::AbandonSearch;
-                }
-
-                self.steps.push(step);
-                self.hashes.insert(hash);
-                CycleSearchResult::KeepTrying
-            }
-        }
-
-        fn extrapolate(&self, begin: usize, end: usize) -> usize {
-            #[derive(Debug)]
-            struct CycleInfo {
-                prelude_ore: usize,
-                prelude_fuel: usize,
-                cycle_ore: usize,
-                cycle_fuel: usize,
-            }
-
-            let zero = CycleInfo {
-                prelude_ore: 0,
-                prelude_fuel: 0,
-                cycle_ore: 0,
-                cycle_fuel: 0,
-            };
-
-            let info = self.steps.iter().fold(zero, |mut info, step| {
-                let in_cycle = step.idx >= begin && step.idx <= end;
-                if in_cycle {
-                    info.cycle_ore += step.ore;
-                    info.cycle_fuel += 1;
-                } else {
-                    info.prelude_ore += step.ore;
-                    info.prelude_fuel += 1;
-                }
-
-                info
-            });
-
-            let mut remaining_ore = PART_TWO_ORE;
-            let mut fuel = 0;
-
-            remaining_ore -= info.prelude_ore;
-            fuel += info.prelude_fuel;
-
-            let full_cycles = remaining_ore / info.cycle_ore;
-            remaining_ore -= full_cycles * info.cycle_ore;
-            fuel += full_cycles * info.cycle_fuel;
-
-            for step in self.steps.iter() {
-                let in_cycle = step.idx >= begin && step.idx <= end;
-                if !in_cycle {
-                    continue;
-                }
-
-                if remaining_ore > step.ore {
-                    remaining_ore -= step.ore;
-                    fuel += 1;
-                } else {
-                    break;
-                }
-            }
-
-            fuel
-        }
-
-        fn tiny_hash(overflow: &[usize]) -> usize {
-            let mut result = 0;
-            for x in overflow.iter() {
-                result = ((result << 14) | x) % LARGEST_CYCLE;
-            }
-            result
-        }
-    }
-
-    pub(in crate::day14) fn calculate_part_2(input: &InputInterpretation) -> usize {
-        enum SearchMode {
-            CycleFinder(CycleSearchState),
-            Exhaustive,
-        }
-
-        let mut mode = SearchMode::CycleFinder(CycleSearchState::new());
-
-        let zero_overflow = SearchState::initial(input).overflow;
-
-        let mut ore = 0;
-        let mut fuel = 0;
-        let mut carried_overflow = zero_overflow.clone();
-
-        loop {
-            let mut next_search = SearchState::initial(input);
-            std::mem::swap(&mut next_search.overflow, &mut carried_overflow);
-
-            let mut result = acquire_fuel(input, next_search);
-            let step_ore_cost = result.ore_cost();
-
-            if ore + step_ore_cost <= PART_TWO_ORE {
-                ore += step_ore_cost;
-                fuel += 1;
-
-                std::mem::swap(&mut carried_overflow, &mut result.overflow);
-                drop(result);
-
-                if let SearchMode::CycleFinder(state) = &mut mode {
-                    let step = FuelStep {
-                        idx: fuel,
-                        ore: step_ore_cost,
-                        cumulative_ore: ore,
-                        overflow: carried_overflow.clone(),
-                    };
-
-                    match state.check_for_cycle(step) {
-                        CycleSearchResult::ResultFound(x) => return x,
-                        CycleSearchResult::AbandonSearch => {
-                            mode = SearchMode::Exhaustive;
-                            continue;
-                        }
-                        CycleSearchResult::KeepTrying => {
-                            continue;
-                        }
-                    }
-                }
-            } else {
-                return fuel;
-            }
-        }
-    }
 }
