@@ -4,10 +4,10 @@ Solutions for [Advent of Code](https://adventofcode.com/), written in Rust.
 
 ## Progress
 
-| Year | Furthest Point | Total Stars |
-| ---- | -------------- | ----------- |
-| 2019 | Day 14         | 27          |
-| 2020 | Day 24         | 48          |
+| Year | Furthest Point | Total Stars    |
+| ---- | -------------- | -------------- |
+| 2019 | Day 14         | 27             |
+| 2020 | Day 25         | 50 (Complete!) |
 
 ## Disclaimer
 
