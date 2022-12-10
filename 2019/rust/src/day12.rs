@@ -1,6 +1,85 @@
+use num::integer::lcm;
 use regex::Regex;
+use std::collections::HashSet;
 
 type BaseInt = i32;
+
+pub fn run_day_twelve() {
+    let mut moons_one = inputs();
+    let mut moons_two = moons_one.clone();
+    println!(
+        "Day 12, Part 1: {}",
+        calculate_part_one(&mut moons_one, 1000)
+    );
+    println!("Day 12, Part 2: {}", calculate_part_two(&mut moons_two));
+}
+
+fn calculate_part_one(set: &mut MoonSet, total_steps: u64) -> BaseInt {
+    simulate_motion(set, |step, _| step == total_steps);
+    set.moons.iter().map(calculate_energy).sum()
+}
+
+fn calculate_part_two(set: &mut MoonSet) -> u64 {
+    let mut x_states: HashSet<AxisState> = HashSet::new();
+    let mut y_states: HashSet<AxisState> = HashSet::new();
+    let mut z_states: HashSet<AxisState> = HashSet::new();
+    let mut x_solution: Option<u64> = None;
+    let mut y_solution: Option<u64> = None;
+    let mut z_solution: Option<u64> = None;
+
+    simulate_motion(set, |step_num, moons| {
+        if x_solution.is_none() {
+            let x = moons.get_axis(Axis::X);
+            if x_states.contains(&x) {
+                //eprintln!("Found a cycle in X after {}", step_num);
+                x_solution = Some(step_num);
+                x_states.clear();
+            } else {
+                x_states.insert(x);
+            }
+        }
+
+        if y_solution.is_none() {
+            let y = moons.get_axis(Axis::Y);
+            if y_states.contains(&y) {
+                //eprintln!("Found a cycle in Y after {}", step_num);
+                y_solution = Some(step_num);
+                y_states.clear();
+            } else {
+                y_states.insert(y);
+            }
+        }
+
+        if z_solution.is_none() {
+            let z = moons.get_axis(Axis::Z);
+            if z_states.contains(&z) {
+                //eprintln!("Found a cycle in Z after {}", step_num);
+                z_solution = Some(step_num);
+                z_states.clear();
+            } else {
+                z_states.insert(z);
+            }
+        }
+
+        x_solution.is_some() && y_solution.is_some() && z_solution.is_some()
+    });
+
+    let a = lcm(x_solution.unwrap(), y_solution.unwrap());
+    lcm(a, z_solution.unwrap())
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct AxisState {
+    positions: [BaseInt; 4],
+    velocities: [BaseInt; 4],
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Axis {
+    X,
+    Y,
+    Z,
+}
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct Vector3 {
@@ -15,31 +94,6 @@ const ZERO_VECTOR: Vector3 = Vector3 { x: 0, y: 0, z: 0 };
 struct Moon {
     pub position: Vector3,
     pub velocity: Vector3,
-}
-
-impl Moon {
-    #[cfg(test)]
-    fn from_coordinates(
-        px: BaseInt,
-        py: BaseInt,
-        pz: BaseInt,
-        vx: BaseInt,
-        vy: BaseInt,
-        vz: BaseInt,
-    ) -> Moon {
-        Moon {
-            position: Vector3 {
-                x: px,
-                y: py,
-                z: pz,
-            },
-            velocity: Vector3 {
-                x: vx,
-                y: vy,
-                z: vz,
-            },
-        }
-    }
 }
 
 const ZERO_MOON: Moon = Moon {
@@ -72,7 +126,7 @@ impl MoonSet {
         MoonSet { moons }
     }
 
-    pub fn mut_refs(&mut self) -> (&mut Moon, &mut Moon, &mut Moon, &mut Moon) {
+    fn mut_refs(&mut self) -> (&mut Moon, &mut Moon, &mut Moon, &mut Moon) {
         unsafe {
             let ptr = self.moons.as_mut_ptr();
             let a = &mut *ptr;
@@ -82,21 +136,32 @@ impl MoonSet {
             (a, b, c, d)
         }
     }
-}
 
-fn calculate_part_one(moons: &MoonSet, total_steps: u64) -> (MoonSet, BaseInt) {
-    let mut copy = moons.clone();
-    simulate_motion(&mut copy, |step, _| step >= total_steps);
-    let energy = copy.moons.iter().map(calculate_energy).sum();
-    (copy, energy)
-}
+    fn get_axis(&self, axis: Axis) -> AxisState {
+        let mut positions = [0; 4];
+        let mut velocities = [0; 4];
+        for (i, m) in self.moons.iter().enumerate() {
+            match axis {
+                Axis::X => {
+                    positions[i] = m.position.x;
+                    velocities[i] = m.velocity.x;
+                }
+                Axis::Y => {
+                    positions[i] = m.position.y;
+                    velocities[i] = m.velocity.y;
+                }
+                Axis::Z => {
+                    positions[i] = m.position.z;
+                    velocities[i] = m.velocity.z;
+                }
+            }
+        }
 
-#[cfg(test)]
-fn calculate_part_two(original_moons: &MoonSet) -> u64 {
-    let mut copy = original_moons.clone();
-    simulate_motion(&mut copy, |step_num, moons| {
-        step_num > 0 && moons == original_moons
-    })
+        AxisState {
+            positions,
+            velocities,
+        }
+    }
 }
 
 fn calculate_energy(moon: &Moon) -> BaseInt {
@@ -106,7 +171,7 @@ fn calculate_energy(moon: &Moon) -> BaseInt {
 }
 
 fn simulate_motion<F: FnMut(u64, &MoonSet) -> bool>(moons: &mut MoonSet, mut stop_fn: F) -> u64 {
-    fn gravity(a: &mut Moon, b: &mut Moon) {
+    fn apply_gravity(a: &mut Moon, b: &mut Moon) {
         let x = (b.position.x - a.position.x).signum();
         let y = (b.position.y - a.position.y).signum();
         let z = (b.position.z - a.position.z).signum();
@@ -119,7 +184,7 @@ fn simulate_motion<F: FnMut(u64, &MoonSet) -> bool>(moons: &mut MoonSet, mut sto
         b.velocity.z -= z;
     }
 
-    fn velocity(moon: &mut Moon) {
+    fn apply_velocity(moon: &mut Moon) {
         moon.position.x += moon.velocity.x;
         moon.position.y += moon.velocity.y;
         moon.position.z += moon.velocity.z;
@@ -129,12 +194,16 @@ fn simulate_motion<F: FnMut(u64, &MoonSet) -> bool>(moons: &mut MoonSet, mut sto
 
     while !stop_fn(step, moons) {
         let (a, b, c, d) = moons.mut_refs();
-        rayon::join(|| gravity(a, b), || gravity(c, d));
-        rayon::join(|| gravity(a, c), || gravity(b, d));
-        rayon::join(|| gravity(a, d), || gravity(b, c));
-
-        rayon::join(|| velocity(a), || velocity(b));
-        rayon::join(|| velocity(c), || velocity(d));
+        apply_gravity(a, b);
+        apply_gravity(c, d);
+        apply_gravity(a, c);
+        apply_gravity(b, d);
+        apply_gravity(a, d);
+        apply_gravity(b, c);
+        apply_velocity(a);
+        apply_velocity(b);
+        apply_velocity(c);
+        apply_velocity(d);
 
         step += 1;
     }
@@ -159,71 +228,45 @@ fn parse_vector(text: &str) -> Option<Vector3> {
     Some(Vector3 { x, y, z })
 }
 
-pub fn run_day_twelve() {
-    let moons = inputs();
-    println!("Day 12, Part 1: {}", calculate_part_one(&moons, 1000).1);
-    //println!("Day 12, Part 2: {}", calculate_part_two(&moons));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn example_1() {
-    let input = r"
-    <x=-1, y=0, z=2>
-    <x=2, y=-10, z=-7>
-    <x=4, y=-8, z=8>
-    <x=3, y=5, z=-1>
-    ";
+    #[test]
+    fn example_1() {
+        let input = r"
+            <x=-1, y=0, z=2>
+            <x=2, y=-10, z=-7>
+            <x=4, y=-8, z=8>
+            <x=3, y=5, z=-1>
+        ";
 
-    let moons = MoonSet::from_str(input);
-    let result = calculate_part_one(&moons, 10);
+        let mut moons_one = MoonSet::from_str(input);
+        let mut moons_two = moons_one.clone();
+        assert_eq!(179, calculate_part_one(&mut moons_one, 10));
+        assert_eq!(2772, calculate_part_two(&mut moons_two));
+    }
 
-    let expected = MoonSet {
-        moons: [
-            Moon::from_coordinates(2, 1, -3, -3, -2, 1),
-            Moon::from_coordinates(1, -8, 0, -1, 1, 3),
-            Moon::from_coordinates(3, -6, 1, 3, 2, -3),
-            Moon::from_coordinates(2, 0, 4, 1, -1, -1),
-        ],
-    };
+    #[test]
+    fn example_2() {
+        let input = r"
+            <x=-8, y=-10, z=0>
+            <x=5, y=5, z=10>
+            <x=2, y=-7, z=3>
+            <x=9, y=-8, z=-3>
+        ";
 
-    assert_eq!(result.0, expected);
-    assert_eq!(result.1, 179);
+        let mut moons_one = MoonSet::from_str(input);
+        let mut moons_two = moons_one.clone();
+        assert_eq!(1940, calculate_part_one(&mut moons_one, 100));
+        assert_eq!(4686774924, calculate_part_two(&mut moons_two));
+    }
 
-    //let part_two = calculate_part_two(&moons);
-    //assert_eq!(2772, part_two);
-}
-
-#[test]
-fn example_2() {
-    let input = r"
-    <x=-8, y=-10, z=0>
-    <x=5, y=5, z=10>
-    <x=2, y=-7, z=3>
-    <x=9, y=-8, z=-3>
-    ";
-
-    let moons = MoonSet::from_str(input);
-    let result = calculate_part_one(&moons, 100);
-
-    let expected = MoonSet {
-        moons: [
-            Moon::from_coordinates(8, -12, -9, -7, 3, 0),
-            Moon::from_coordinates(13, 16, -3, 3, -11, -5),
-            Moon::from_coordinates(-29, -11, -1, -3, 7, 4),
-            Moon::from_coordinates(16, -13, 23, 7, 1, 1),
-        ],
-    };
-
-    assert_eq!(result.0, expected);
-    assert_eq!(result.1, 1940);
-
-    //let part_two = calculate_part_two(&moons);
-    //assert_eq!(4686774924, part_two);
-}
-
-#[test]
-fn actual_part_1() {
-    let moons = inputs();
-    let result = calculate_part_one(&moons, 1000);
-    assert_eq!(8287, result.1);
+    #[test]
+    fn actual_part_1() {
+        let mut moons_one = inputs();
+        let mut moons_two = moons_one.clone();
+        assert_eq!(8287, calculate_part_one(&mut moons_one, 1000));
+        assert_eq!(528250271633772, calculate_part_two(&mut moons_two));
+    }
 }
