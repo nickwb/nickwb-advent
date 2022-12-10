@@ -2,26 +2,107 @@ use std::collections::HashMap;
 
 pub fn run_day_twenty_four() {
     let inputs = inputs();
-    println!("Day 24, Part 1: {}", calculate_part_1(&inputs));
-    // println!("Day 24, Part 1: {}", calculate_part_1(input));
+    let (part_1, part_2) = calculate_both_parts(&inputs);
+    println!("Day 24, Part 1: {}", part_1);
+    println!("Day 24, Part 2: {}", part_2);
 }
 
-fn calculate_part_1(inputs: &Inputs) -> usize {
-    let mut tiles: HashMap<Point, TileColor> = HashMap::new();
-    for p in &inputs.flip_paths {
-        let mut point = Point::from_qr(0, 0);
-        for &d in &p.steps {
-            point = point.step(d, 1);
-        }
+fn calculate_both_parts(inputs: &Inputs) -> (usize, usize) {
+    let mut floor = TiledFloor::from_inputs(inputs);
+    let part_1 = floor.count_black_tiles();
+    for _i in 0..100 {
+        floor.single_day_transform();
+    }
+    let part_2 = floor.count_black_tiles();
+    (part_1, part_2)
+}
 
-        let tile = tiles.entry(point).or_insert(TileColor::White);
-        *tile = match tile {
-            TileColor::Black => TileColor::White,
-            TileColor::White => TileColor::Black,
-        };
+struct TiledFloor {
+    tiles: HashMap<Point, TileColor>,
+}
+
+impl TiledFloor {
+    fn from_inputs(inputs: &Inputs) -> Self {
+        let mut tiles: HashMap<Point, TileColor> = HashMap::new();
+        for p in &inputs.flip_paths {
+            let mut point = Point::from_qr(0, 0);
+            for &d in &p.steps {
+                point = point.step(d, 1);
+            }
+
+            let tile = tiles.entry(point).or_insert(TileColor::White);
+            *tile = match tile {
+                TileColor::Black => TileColor::White,
+                TileColor::White => TileColor::Black,
+            };
+        }
+        Self { tiles }
     }
 
-    tiles.values().filter(|&&v| v == TileColor::Black).count()
+    fn single_day_transform(&mut self) {
+        let black_tiles: Vec<Point> = self
+            .tiles
+            .iter()
+            .filter_map(
+                |(&p, &t)| {
+                    if t == TileColor::Black {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .collect();
+
+        let mut updates: Vec<(Point, TileColor)> = Vec::new();
+        for p in &black_tiles {
+            let mut black_neighbour_count = 0;
+            for n in p.neighbours() {
+                let tile = self.tiles.entry(n).or_insert(TileColor::White);
+                if tile == &TileColor::Black {
+                    black_neighbour_count += 1;
+                }
+            }
+            if black_neighbour_count == 0 || black_neighbour_count > 2 {
+                updates.push((*p, TileColor::White))
+            }
+        }
+
+        let white_tiles =
+            self.tiles.iter().filter_map(
+                |(p, &t)| {
+                    if t == TileColor::White {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                },
+            );
+
+        for p in white_tiles {
+            let mut black_neighbour_count = 0;
+            for n in p.neighbours() {
+                let tile = self.tiles.get(&n).unwrap_or(&TileColor::White);
+                if tile == &TileColor::Black {
+                    black_neighbour_count += 1;
+                }
+            }
+            if black_neighbour_count == 2 {
+                updates.push((*p, TileColor::Black));
+            }
+        }
+
+        for (p, t) in updates {
+            self.tiles.insert(p, t);
+        }
+    }
+
+    fn count_black_tiles(&self) -> usize {
+        self.tiles
+            .values()
+            .filter(|&&v| v == TileColor::Black)
+            .count()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -131,6 +212,19 @@ impl Point {
             Direction::NorthEast => Self::from_qr(q + units, r - units),
         }
     }
+
+    fn neighbours<'a>(&'a self) -> impl Iterator<Item = Point> + 'a {
+        const DIRECTIONS: [Direction; 6] = [
+            Direction::East,
+            Direction::SouthEast,
+            Direction::SouthWest,
+            Direction::West,
+            Direction::NorthWest,
+            Direction::NorthEast,
+        ];
+
+        DIRECTIONS.iter().map(move |&d| self.step(d, 1))
+    }
 }
 
 fn inputs() -> Inputs {
@@ -168,12 +262,16 @@ mod tests {
         ";
 
         let inputs = Inputs::parse(text);
-        assert_eq!(10, calculate_part_1(&inputs));
+        let (part_1, part_2) = calculate_both_parts(&inputs);
+        assert_eq!(10, part_1);
+        assert_eq!(2208, part_2);
     }
 
     #[test]
     fn actual_inputs() {
         let inputs = inputs();
-        assert_eq!(500, calculate_part_1(&inputs));
+        let (part_1, part_2) = calculate_both_parts(&inputs);
+        assert_eq!(500, part_1);
+        assert_eq!(4280, part_2);
     }
 }
