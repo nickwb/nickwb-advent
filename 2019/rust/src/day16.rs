@@ -4,8 +4,9 @@ use std::{convert::TryInto, iter::repeat};
 pub fn run_day_sixteen() {
     let text = inputs();
     let part_1 = Digits::parse(&text).calculate_fft(100).to_string(8);
+    let part_2 = Digits::parse(&text).solve_part_two();
     println!("Day 16, Part 1: {}", part_1);
-    println!("Day 16, Part 2: {}", 0);
+    println!("Day 16, Part 2: {}", part_2);
 }
 
 #[derive(Debug, Clone)]
@@ -16,32 +17,11 @@ struct Digits {
 
 impl Digits {
     fn parse(text: &str) -> Self {
-        Self::parse_and_expand(text, 1)
-    }
-
-    fn parse_and_expand(text: &str, repeats: usize) -> Self {
         let items: Vec<isize> = text
             .trim()
             .chars()
-            .filter_map(|c| {
-                if c.is_digit(10) {
-                    Some((c as isize) - 48)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|c| c.to_digit(10).map(|d| d as isize))
             .collect();
-
-        let items = if repeats > 0 {
-            let mut repeated = Vec::with_capacity(items.len() * repeats);
-            for _ in 0..repeats {
-                repeated.extend_from_slice(&items);
-            }
-
-            repeated
-        } else {
-            items
-        };
 
         Self {
             spare: Vec::with_capacity(items.len()),
@@ -58,18 +38,15 @@ impl Digits {
     }
 
     fn calculate_phase(&mut self) {
-        eprintln!("{}", self.to_string(128));
         let items = &self.items[..];
         let outputs = (0..items.len()).into_par_iter().map(|i| {
-            let sum = build_single_sum(i + 1, items);
+            let sum: isize = items
+                .iter()
+                .zip(multiply_pattern(i + 1))
+                .skip(i) // The first i items are definitely zero
+                .map(|(&x, y)| x * y)
+                .sum();
             last_digit_of(sum)
-
-            // let sum: isize = items
-            //     .iter()
-            //     .zip(multiply_pattern(i + 1))
-            //     .map(|(&x, y)| x * y)
-            //     .sum();
-            // last_digit_of(sum)
         });
         self.spare.clear();
         self.spare.par_extend(outputs);
@@ -94,47 +71,56 @@ impl Digits {
         buf
     }
 
-    fn to_string_from_inline_offset(&self) -> String {
-        let offset = self.to_string_with_offset(7, 0);
-        let offset: usize = offset.parse().unwrap();
-        self.to_string_with_offset(8, offset)
-    }
-}
+    fn solve_part_two(&mut self) -> String {
+        let offset = make_number(&self.items[0..7]) as usize;
+        let input_len = self.items.len();
+        let signal_len = input_len * 10_000;
 
-fn build_single_sum(repeats: usize, items: &[isize]) -> isize {
-    const BASE_PATTERN: [isize; 4] = [0, 1, 0, -1];
+        // This solution assumes that the offset will have a coefficient of one
+        // But this only works if the real signal is shorter than twice the offset
+        assert!(offset * 2 > signal_len);
+        assert!(offset < signal_len);
 
-    let mut r = repeats - 1;
-    let mut j = 0;
-    let mut remaining = items.len();
-    let mut sum = 0;
-    loop {
-        for p in BASE_PATTERN {
-            let advance = r.min(remaining);
-            let k = j + advance;
+        // Pre-allocate our vecs, now that we can predict their required capacities
+        let working_items = (signal_len - offset) + 1;
+        self.items.reserve_exact(working_items - self.items.len());
+        self.spare.reserve_exact(working_items - self.spare.len());
 
-            if p != 0 {
-                // SAFETY: I pinky promise that it is always in bounds
-                let span: isize = unsafe { items.get_unchecked(j..k).iter().sum() };
-                //let span: isize = (&items[j..k]).iter().sum();
-                sum += p * span;
-            }
+        // Build the real signal, starting from the message offset
+        // The formulation of the problem guarantees that all values prior to
+        // the offset will have a coefficient of zero, so we can ignore them
+        let signal = (offset..signal_len).map(|i| self.items[i % input_len]);
+        self.spare.extend(signal);
 
-            // if p == 1 {
-            //     sum += (&items[j..k]).iter().sum::<isize>();
-            // } else if p == -1 {
-            //     sum -= (&items[j..k]).iter().sum::<isize>();
-            // }
+        std::mem::swap(&mut self.items, &mut self.spare);
+        self.spare.clear();
 
-            j += advance;
-            remaining -= advance;
+        for _ in 0..100 {
+            let mut sum = 0;
 
-            if remaining == 0 {
-                return sum;
-            }
+            // Due to the pattern offset of 1, the first element still has a coefficient of zero
+            self.spare.push(0);
+            self.spare.extend(self.items.iter().map(|n| {
+                sum += n;
+                sum
+            }));
 
-            r = repeats;
+            // The extra element due to the pattern offset is not needed
+            self.spare.pop();
+
+            // For each digit, the desired new digit will be equal to the sum of all subsequent digits, mod 10.
+            // The sum of the current digit, plus all of its preceding digits is currently stored in spare.
+            // So, we can calculate the desired digit by subtracting the current value from the total sum.
+            self.spare.iter_mut().for_each(|n| {
+                let digit = (sum - *n) % 10;
+                *n = digit;
+            });
+
+            std::mem::swap(&mut self.items, &mut self.spare);
+            self.spare.clear();
         }
+
+        self.to_string(8)
     }
 }
 
@@ -143,6 +129,10 @@ fn multiply_pattern(seed: usize) -> impl Iterator<Item = isize> {
     (0..)
         .flat_map(move |idx| repeat(BASE_PATTERN[idx % 4]).take(seed))
         .skip(1)
+}
+
+fn make_number(digits: &[isize]) -> isize {
+    digits.iter().fold(0, |num, &x| (num * 10) + x)
 }
 
 fn last_digit_of(value: isize) -> isize {
@@ -190,9 +180,15 @@ mod tests {
     fn example_2() {
         assert_eq!(
             "84462026",
-            Digits::parse_and_expand("03036732577212944063491565474664", 10000)
-                .calculate_fft(100)
-                .to_string_from_inline_offset()
+            Digits::parse("03036732577212944063491565474664").solve_part_two()
+        );
+        assert_eq!(
+            "78725270",
+            Digits::parse("02935109699940807407585447034323").solve_part_two()
+        );
+        assert_eq!(
+            "53553731",
+            Digits::parse("03081770884921959731165446850517").solve_part_two()
         );
     }
 
@@ -200,6 +196,8 @@ mod tests {
     fn actual_inputs() {
         let text = inputs();
         let part_1 = Digits::parse(&text).calculate_fft(100).to_string(8);
+        let part_2 = Digits::parse(&text).solve_part_two();
         assert_eq!("74608727", part_1);
+        assert_eq!("57920757", part_2);
     }
 }
