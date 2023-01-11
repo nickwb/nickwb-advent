@@ -51,7 +51,7 @@ fn solve_first() -> usize {
     result
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum RobotState {
     Up,
     Down,
@@ -90,6 +90,19 @@ impl CameraBuffer {
             Some(Observation::Robot { state }) if state != &RobotState::Loose => true,
             _ => false,
         }
+    }
+
+    fn find_robot(&self) -> Option<(usize, usize, RobotState)> {
+        let stride = self.stride.expect("Need a stride");
+        self.grid.iter().enumerate().find_map(|(idx, observation)| {
+            if let Observation::Robot { state } = observation {
+                let x = idx % stride;
+                let y = idx / stride;
+                Some((x, y, *state))
+            } else {
+                None
+            }
+        })
     }
 
     fn to_string(&self) -> String {
